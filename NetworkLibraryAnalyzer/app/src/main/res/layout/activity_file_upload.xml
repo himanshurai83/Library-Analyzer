@@ -1,0 +1,539 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F7FB"
+    android:fillViewport="true"
+    android:scrollbars="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="20dp">
+
+        <!-- HEADER -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="50dp"
+            android:text="Upload File"
+            android:textColor="#172033"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="Select a file to analyze network performance"
+            android:textColor="#737B8C"
+            android:textSize="14sp" />
+
+        <!-- FILE SELECTION HEADING -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Select Your File"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- FILE SELECTION CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/pickCard"
+            android:layout_width="match_parent"
+            android:layout_height="190dp"
+            android:layout_marginTop="14dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#B8CCFF"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <ImageView
+                    android:layout_width="58dp"
+                    android:layout_height="58dp"
+                    android:contentDescription="Upload file icon"
+                    android:src="@android:drawable/stat_sys_upload"
+                    android:tint="#3157D5" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="Tap to select a file"
+                    android:textColor="#172033"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="Choose a file from your device"
+                    android:textColor="#737B8C"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- SELECTED FILE HEADING -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Selected File"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- SELECTED FILE CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/fileCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <ImageView
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:contentDescription="File icon"
+                    android:src="@android:drawable/ic_menu_save"
+                    android:tint="#3157D5" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/fileName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="middle"
+                        android:singleLine="true"
+                        android:text="Selected file"
+                        android:textColor="#172033"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:text="Ready to upload"
+                        android:textColor="#737B8C"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- NETWORK LIBRARY HEADING -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Network Library Selection"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- NETWORK LIBRARY CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/libraryCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Select One or More Libraries"
+                    android:textColor="#172033"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/libraryGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/httpURLConnectionCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:text="HttpURLConnection"
+                        android:textColor="#172033"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/okHttpCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:text="OkHttp"
+                        android:textColor="#172033"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/retrofitCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:text="Retrofit"
+                        android:textColor="#172033"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/volleyCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:text="Volley"
+                        android:textColor="#172033"
+                        android:textSize="15sp" />
+
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- CHOOSE LIBRARY BUTTON -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chooseLibraryButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="14dp"
+            android:text="Choose Network Library"
+            android:textAllCaps="false"
+            android:textSize="15sp"
+            android:textColor="#3157D5"
+            app:backgroundTint="#E7EDFF"
+            app:cornerRadius="12dp"
+            app:strokeColor="#B8CCFF"
+            app:strokeWidth="1dp" />
+
+        <!-- UPLOADING INFORMATION HEADING -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Uploading Information"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- UPLOADING INFORMATION CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/uploadingInformationCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- FILE NAME -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="File Name"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/infoFileName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="No file selected"
+                    android:textColor="#172033"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- FILE SIZE -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="File Size"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/infoFileSize"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="--"
+                    android:textColor="#172033"
+                    android:textSize="15sp" />
+
+                <!-- FILE TYPE -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="File Type"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/infoFileType"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="--"
+                    android:textColor="#172033"
+                    android:textSize="15sp" />
+
+                <!-- SELECTED LIBRARIES -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="Selected Libraries"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/infoLibraries"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="No library selected"
+                    android:textColor="#172033"
+                    android:textSize="15sp" />
+
+                <!-- UPLOAD STATUS -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="Upload Status"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/infoUploadStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Waiting for file"
+                    android:textColor="#3157D5"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- UPLOADING PERFORMANCE HEADING -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Uploading Performance"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- UPLOADING PERFORMANCE CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/uploadingPerformanceCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- UPLOAD TIME -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Upload Time"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/performanceUploadTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Not tested"
+                    android:textColor="#172033"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <!-- THROUGHPUT -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Throughput"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/performanceThroughput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Not tested"
+                    android:textColor="#172033"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <!-- RESPONSE TIME -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Response Time"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/performanceResponseTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Not tested"
+                    android:textColor="#172033"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <!-- SUCCESS RATE -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Success Rate"
+                    android:textColor="#737B8C"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/performanceSuccessRate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Not tested"
+                    android:textColor="#172033"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- SUCCESS CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/successCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="#E8F5E9"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#A5D6A7"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="Success icon"
+                    android:src="@android:drawable/checkbox_on_background"
+                    android:tint="#2E7D32" />
+
+                <TextView
+                    android:id="@+id/successMessage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="File selection completed!"
+                    android:textColor="#2E7D32"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- START ANALYSIS BUTTON -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/uploadButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="12dp"
+            android:enabled="false"
+            android:text="Start Network Library Analysis Test"
+            android:textAllCaps="false"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            app:backgroundTint="#3157D5"
+            app:cornerRadius="12dp" />
+
+    </LinearLayout>
+
+</ScrollView>

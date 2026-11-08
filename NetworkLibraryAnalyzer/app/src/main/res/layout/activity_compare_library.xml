@@ -1,0 +1,526 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F7FB"
+    android:fillViewport="true"
+    android:id="@+id/main">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Compare Libraries"
+            android:textColor="#172033"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="Analyze network performance"
+            android:textColor="#737B8C"
+            android:textSize="14sp" />
+
+        <!-- Comparison Settings -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Comparison Settings"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="HTTP Method"
+            android:textColor="#465064"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerCompareMethod"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_history_card"
+            android:paddingHorizontal="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="API Endpoint"
+            android:textColor="#465064"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/editCompareEndpoint"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_history_card"
+            android:hint="/students/1"
+            android:inputType="textUri"
+            android:paddingHorizontal="12dp"
+            android:singleLine="true"
+            android:textColor="#172033"
+            android:textColorHint="#9299A7"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Number of Requests per Library"
+            android:textColor="#465064"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerCompareRuns"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_history_card"
+            android:paddingHorizontal="12dp" />
+
+        <!-- Run Button -->
+        <Button
+            android:id="@+id/btnRunComparison"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="20dp"
+            android:backgroundTint="#3157D5"
+            android:text="Run Comparison"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Overview -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Comparison Overview"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <!-- Fastest Library -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="112dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_history_card"
+                android:gravity="center_vertical"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fastest Library"
+                    android:textColor="#737B8C"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/txtFastestLibrary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="OkHttp"
+                    android:textColor="#16845B"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtFastestTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="128 ms average"
+                    android:textColor="#737B8C"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Overall Average -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="112dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_history_card"
+                android:gravity="center_vertical"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Overall Average"
+                    android:textColor="#737B8C"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/txtOverallAverage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="153 ms"
+                    android:textColor="#3157D5"
+                    android:textSize="23sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="All libraries"
+                    android:textColor="#737B8C"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Chart Heading -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Average Response Time"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Lower response time is better"
+            android:textColor="#737B8C"
+            android:textSize="12sp" />
+
+        <!-- HttpURLConnection -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="HttpURLConnection"
+                    android:textColor="#465064"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="180 ms"
+                    android:textColor="#465064"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:max="200"
+                android:progress="180"
+                android:progressTint="#64748B"
+                android:progressBackgroundTint="#E3E7EF" />
+        </LinearLayout>
+
+        <!-- OkHttp -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="OkHttp"
+                    android:textColor="#465064"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="128 ms"
+                    android:textColor="#16845B"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:max="200"
+                android:progress="128"
+                android:progressTint="#16A36A"
+                android:progressBackgroundTint="#E3E7EF" />
+        </LinearLayout>
+
+        <!-- Retrofit -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Retrofit"
+                    android:textColor="#465064"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="145 ms"
+                    android:textColor="#465064"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:max="200"
+                android:progress="145"
+                android:progressTint="#3B82F6"
+                android:progressBackgroundTint="#E3E7EF" />
+        </LinearLayout>
+
+        <!-- Volley -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Volley"
+                    android:textColor="#465064"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="160 ms"
+                    android:textColor="#465064"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:max="200"
+                android:progress="160"
+                android:progressTint="#D97706"
+                android:progressBackgroundTint="#E3E7EF" />
+        </LinearLayout>
+
+        <!-- Detailed Results -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Detailed Results"
+            android:textColor="#172033"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:scrollbars="horizontal">
+
+            <TableLayout
+                android:id="@+id/tableComparisonResults"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_history_card"
+                android:padding="10dp"
+                android:stretchColumns="*">
+
+                <TableRow
+                    android:paddingVertical="10dp">
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="Library"
+                        android:textColor="#172033"
+                        android:textStyle="bold"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="Avg. Time"
+                        android:textColor="#172033"
+                        android:textStyle="bold"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="Success"
+                        android:textColor="#172033"
+                        android:textStyle="bold"
+                        android:textSize="12sp" />
+                </TableRow>
+
+                <TableRow>
+                    <TextView
+                        android:padding="8dp"
+                        android:text="HttpURLConnection"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="180 ms"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="100%"
+                        android:textColor="#16845B"
+                        android:textSize="12sp" />
+                </TableRow>
+
+                <TableRow>
+                    <TextView
+                        android:padding="8dp"
+                        android:text="OkHttp"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="128 ms"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="100%"
+                        android:textColor="#16845B"
+                        android:textSize="12sp" />
+                </TableRow>
+
+                <TableRow>
+                    <TextView
+                        android:padding="8dp"
+                        android:text="Retrofit"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="145 ms"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="100%"
+                        android:textColor="#16845B"
+                        android:textSize="12sp" />
+                </TableRow>
+
+                <TableRow>
+                    <TextView
+                        android:padding="8dp"
+                        android:text="Volley"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="160 ms"
+                        android:textColor="#465064"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:padding="8dp"
+                        android:text="100%"
+                        android:textColor="#16845B"
+                        android:textSize="12sp" />
+                </TableRow>
+
+            </TableLayout>
+        </HorizontalScrollView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="20dp"
+            android:text="Sample values for UI preview only."
+            android:textColor="#8A92A1"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+</ScrollView>
