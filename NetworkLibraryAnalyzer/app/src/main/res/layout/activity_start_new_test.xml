@@ -110,7 +110,6 @@
                     app:boxCornerRadiusTopStart="12dp"
                     app:boxStrokeColor="#2463EB"
                     app:hintTextColor="#2463EB"
-                    app:helperText="Path appended to the base URL, e.g. /students/1"
                     app:startIconDrawable="@android:drawable/ic_menu_compass"
                     app:startIconTint="#6B7A90">
 
@@ -121,6 +120,67 @@
                         android:inputType="textUri"
                         android:singleLine="true" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+<!--                Suggested API EndPoints-->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Suggested API Endpoints"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:textColor="#2463EB"/>
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipEndpointGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:singleSelection="false"
+                    app:chipSpacingHorizontal="8dp"
+                    app:chipSpacingVertical="6dp">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipInfo"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="/info"
+                        android:checkable="false"/>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipStudent"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="/student"
+                        android:checkable="false"/>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipStudents"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="/students"
+                        android:checkable="false"/>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipStudentId"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="/students/1"
+                        android:checkable="false"/>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipUsers"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="/users"
+                        android:checkable="false"/>
+
+                </com.google.android.material.chip.ChipGroup>
 
                 <!-- JSON Request Body -->
                 <com.google.android.material.textfield.TextInputLayout

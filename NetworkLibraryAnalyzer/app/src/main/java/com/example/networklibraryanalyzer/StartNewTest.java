@@ -30,11 +30,23 @@ import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.android.volley.VolleyError;
 import com.android.volley.DefaultRetryPolicy;
+import com.google.android.material.chip.Chip;
 import com.google.gson.Gson;
 
 import okhttp3.*;
+import retrofit2.Retrofit;
+
 import java.io.IOException;
 import java.util.Locale;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import okhttp3.ResponseBody;
+
+import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
+import okhttp3.MediaType;
 
 public class StartNewTest extends AppCompatActivity {
 
@@ -42,6 +54,8 @@ public class StartNewTest extends AppCompatActivity {
     TextView txtRes;
     Spinner libraryType,methodType;
     ProgressBar progressBar;
+    Chip chip;
+    EditText editEndPoint;
 
 
 
@@ -71,6 +85,27 @@ public class StartNewTest extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        int[] chipIds = {
+                R.id.chipInfo,
+                R.id.chipStudent,
+                R.id.chipStudents,
+                R.id.chipStudentId,
+                R.id.chipUsers,
+        };
+
+        editEndPoint = findViewById(R.id.editEndpoint);
+        for (int id : chipIds) {
+
+            Chip currentChip = findViewById(id);
+
+            currentChip.setOnClickListener(v -> {
+                String endpoint = ((Chip) v).getText().toString();
+
+                editEndPoint.setText(endpoint);
+                editEndPoint.setSelection(editEndPoint.getText().length());
+            });
+        }
 
         btnStartTest = findViewById(R.id.btnStartTest);
         txtRes = findViewById(R.id.txtResponse);
@@ -108,40 +143,70 @@ public class StartNewTest extends AppCompatActivity {
                 public void onClick(View v) {
 
                     String selectedLibrary = libraryType.getSelectedItem().toString();
+                    String selectedMethod = methodType.getSelectedItem().toString();
 
                     startLoading();
 
-                    String api = "http://192.168.59.40:8080/info";
-                    String api2 = "http://192.168.59.40:8080/student";
+                    String baseURL = "http://192.168.1.25:8080";
+
+                    String endpoint = editEndPoint.getText().toString().trim();
+
+                    if (endpoint.isEmpty()) {
+                        editEndPoint.setError("Enter API endpoint");
+                        return;
+                    }
+
+                    if (!endpoint.startsWith("/")) {
+                        endpoint = "/" + endpoint;
+                    }
+
+                    String api = baseURL + endpoint;
 
                     switch (selectedLibrary) {
                         case "HttpURLConnection":
-                            callUsingHttpURLConnection(api2);
+                            callUsingHttpURLConnection(api,selectedMethod);
                             break;
 
                         case "OkHttp":
-                            callUsingOkHttp(api2);
+                            callUsingOkHttp(api,selectedMethod);
                             break;
 
                         case "Retrofit":
-                            callUsingRetrofit(api);
+                            callUsingRetrofit(api,selectedMethod);
                             break;
 
                         case "Volley":
-                            callUsingVolley(api);
+                            callUsingVolley(api,selectedMethod);
+                            break;
+
+                        case "Ktor":
+                            callUsingKtor(api, selectedMethod);
                             break;
                     }
                 }
 
 
-                private void callUsingVolley(String api) {
+                private void callUsingVolley(String api,String method) {
 
                     RequestQueue queue = Volley.newRequestQueue(StartNewTest.this);
 
                     long startTime = System.nanoTime();
 
+                    int volleyMethod;
+
+                    switch (method.toUpperCase()) {
+                        case "GET": volleyMethod = Request.Method.GET; break;
+                        case "POST": volleyMethod = Request.Method.POST; break;
+                        case "PUT": volleyMethod = Request.Method.PUT; break;
+                        case "DELETE": volleyMethod = Request.Method.DELETE; break;
+                        case "PATCH": volleyMethod = Request.Method.PATCH; break;
+                        case "HEAD": volleyMethod = Request.Method.HEAD; break;
+                        case "OPTIONS": volleyMethod = Request.Method.OPTIONS; break;
+                        default: throw new IllegalArgumentException("Unsupported method");
+                    }
+
                     StringRequest request = new StringRequest(
-                            Request.Method.GET,
+                            volleyMethod,
                             api,
 
                             response -> {
@@ -193,38 +258,164 @@ public class StartNewTest extends AppCompatActivity {
                     queue.add(request);
                 }
 
+                private void callUsingRetrofit(String api, String method) {
 
-                private void callUsingRetrofit(String api) {
+                    String baseUrl = "http://192.168.1.25:8080/";
+
+                    Retrofit retrofit = new Retrofit.Builder()
+                            .baseUrl(baseUrl)
+                            .build();
+
+                    RetrofitApi retrofitApi =
+                            retrofit.create(RetrofitApi.class);
+
+                    // Extract relative endpoint
+                    String endpoint = api.replace(baseUrl, "");
+
+                    String json = "{\"name\":\"Rahul\",\"age\":22,\"course\":\"Android\"}";
+
+                    RequestBody body = RequestBody.create(
+                            MediaType.parse("application/json; charset=utf-8"),
+                            json
+                    );
+
+                    retrofit2.Call<ResponseBody> call;
+
+                    switch (method.toUpperCase(Locale.ROOT)) {
+
+                        case "GET":
+                            call = retrofitApi.get(endpoint);
+                            break;
+
+                        case "POST":
+                            call = retrofitApi.post(endpoint, body);
+                            break;
+
+                        case "PUT":
+                            call = retrofitApi.put(endpoint, body);
+                            break;
+
+                        case "PATCH":
+                            call = retrofitApi.patch(endpoint, body);
+                            break;
+
+                        case "DELETE":
+                            call = retrofitApi.delete(endpoint);
+                            break;
+
+                        case "HEAD":
+                            call = retrofitApi.head(endpoint);
+                            break;
+
+                        case "OPTIONS":
+                            call = retrofitApi.options(endpoint);
+                            break;
+
+                        default:
+                            finishTest();
+                            runOnUiThread(() ->
+                                    txtRes.setText("Unsupported HTTP method")
+                            );
+                            return;
+                    }
+
+                    long startTime = System.nanoTime();
+
+                    call.enqueue(new retrofit2.Callback<ResponseBody>() {
+
+                        @Override
+                        public void onResponse(
+                                retrofit2.Call<ResponseBody> call,
+                                Response<ResponseBody> response) {
+
+                            long endTime = System.nanoTime();
+
+                            double responseTime =
+                                    (endTime - startTime) / 1_000_000.0;
+
+                            String responseString = "";
+
+                            try {
+                                if (response.body() != null) {
+                                    responseString = response.body().string();
+                                } else if (response.errorBody() != null) {
+                                    responseString = response.errorBody().string();
+                                }
+
+                            } catch (IOException e) {
+                                responseString = "Error reading response: " + e.getMessage();
+                            }
+
+                            String result =
+                                    "Network Library: Retrofit\n\n" +
+                                            "HTTP Method: " + method + "\n\n" +
+                                            "API URL: " + api + "\n\n" +
+                                            "Status Code: " + response.code() + "\n\n" +
+                                            String.format(Locale.US,
+                                                    "Response Time: %.2f ms\n\n",
+                                                    responseTime) +
+                                            "API Response:\n" + responseString;
+
+                            runOnUiThread(() -> txtRes.setText(result));
+
+                            finishTest();
+                        }
+
+                        @Override
+                        public void onFailure(
+                                retrofit2.Call<ResponseBody> call,
+                                Throwable t) {
+
+                            runOnUiThread(() ->
+                                    txtRes.setText("Retrofit Error: " + t.getMessage())
+                            );
+
+                            finishTest();
+                        }
+                    });
                 }
 
-                private void callUsingOkHttp(String api) {
+                private void callUsingOkHttp(String api,String method) {
 
                     OkHttpClient client = new OkHttpClient();
 
+                    RequestBody requestBody = null;
+
+                    if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH")) {
+                        String jsonBody = "{\"name\":\"Rahul\",\"age\":22,\"course\":\"Android\"}";
+
+                        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+
+                        requestBody = RequestBody.create(
+                                jsonBody,
+                                mediaType
+                        );
+                    }
+
                     okhttp3.Request request = new okhttp3.Request.Builder()
                             .url(api)
-                            .get()
+                            .method(method,requestBody)
                             .build();
 
                     long startTime = System.nanoTime();
 
-                    client.newCall(request).enqueue(new Callback() {
+                    client.newCall(request).enqueue(new okhttp3.Callback() {
 
                         @Override
-                        public void onFailure(Call call, IOException e) {
+                        public void onFailure(okhttp3.Call call, IOException e) {
                             e.printStackTrace();
                             finishTest();
                         }
 
                         @Override
-                        public void onResponse(Call call, Response response)
+                        public void onResponse(okhttp3.Call call, okhttp3.Response response)
                                 throws IOException {
 
                             long start = startTime;
                             int statusCode = response.code();
                             String responseString = "";
 
-                            try (Response res = response) {
+                            try (okhttp3.Response res = response) {
 
                                 if (res.body() != null) {
                                     responseString = res.body().string();
@@ -238,25 +429,11 @@ public class StartNewTest extends AppCompatActivity {
 
                                 if (res.isSuccessful()) {
 
-                                    Student student = new Gson().fromJson(
-                                            responseString, Student.class
-                                    );
-
                                     String result =
                                             "Network Library: OkHttp\n\n" +
-                                                    "HTTP Method: GET\n\n" +
-                                                    "API URL: /info\n\n" +
+                                                    "HTTP Method: " + method + "\n\n" +
                                                     "Status Code: " + statusCode + "\n\n" +
-                                                    String.format(
-                                                            java.util.Locale.US,
-                                                            "Response Time: %.2f ms\n\n",
-                                                            responseTime
-                                                    ) +
-                                                    "Student Information\n" +
-                                                    "Student ID: "  + "\n" +
-                                                    "Name: " + student.getName() + "\n" +
-                                                    "Age: " + student.getAge() + "\n" +
-                                                    "Course: " ;
+                                                    "API Response:\n" + responseString;
 
                                     runOnUiThread(() -> txtRes.setText(result));
 
@@ -279,14 +456,7 @@ public class StartNewTest extends AppCompatActivity {
                     });
                 }
 
-                private void callUsingHttpURLConnection(String api) {
-
-                    // Show loading and disable the button on the UI thread
-
-
-                    String selectedLibrary =
-                            libraryType.getSelectedItem().toString();
-
+                private void callUsingHttpURLConnection(String api,String method) {
                     new Thread(() -> {
 
                         HttpURLConnection connection = null;
@@ -299,7 +469,7 @@ public class StartNewTest extends AppCompatActivity {
                             URL url = new URL(api);
 
                             connection = (HttpURLConnection) url.openConnection();
-                            connection.setRequestMethod("GET");
+                            connection.setRequestMethod(method);
                             connection.setConnectTimeout(5000);
                             connection.setReadTimeout(5000);
 
@@ -332,28 +502,12 @@ public class StartNewTest extends AppCompatActivity {
 
                             String responseString = response.toString();
 
-
-                            Gson gson = new Gson();
-
-                            Student student = gson.fromJson(responseString, Student.class);
-
                             String result =
-                                    "Network Library: " + selectedLibrary + "\n\n" +
-                                            "HTTP Method: GET\n\n" +
-                                            "API URL: /info\n\n" +
+                                    "Network Library: HttpURLConnection\n\n" +
+                                            "HTTP Method: " + method + "\n\n" +
                                             "Status Code: " + statusCode + "\n\n" +
-                                            String.format(
-                                                    java.util.Locale.US,
-                                                    "Response Time: %.2f ms\n\n",
-                                                    responseTime
-                                            ) +
-                                            "Student Information\n" +
-                                            "------------------------\n" +
-                                            "Student ID: "  + "\n" +
-                                            "Name: " + student.getName() + "\n" +
-                                            "Age: " + student.getAge() + "\n" +
-                                            "Course: ";
-
+                                            "Response Time: " + responseTime + " ms\n\n" +
+                                            "API Response:\n" + responseString;
 
                             runOnUiThread(() -> txtRes.setText(result));
 
@@ -383,6 +537,47 @@ public class StartNewTest extends AppCompatActivity {
                     }).start();
                 }
 
+                private void callUsingKtor(String api, String method) {
+
+                    String jsonBody =
+                            "{\"name\":\"Rahul\",\"age\":22,\"course\":\"Android\"}";
+
+                    KtorHelper.execute(
+                            api,
+                            method,
+                            jsonBody,
+                            new KtorHelper.ResultCallback() {
+
+                                @Override
+                                public void onResult(
+                                        int statusCode,
+                                        String response,
+                                        double responseTime,
+                                        String error) {
+
+                                    runOnUiThread(() -> {
+
+                                        if (error != null) {
+                                            txtRes.setText("Ktor Error: " + error);
+                                        } else {
+
+                                            String result =
+                                                    "Network Library: Ktor\n\n" +
+                                                            "HTTP Method: " + method + "\n\n" +
+                                                            "Status Code: " + statusCode + "\n\n" +
+                                                            "Response Time: " +
+                                                            responseTime + " ms\n\n" +
+                                                            "API Response:\n" + response;
+
+                                            txtRes.setText(result);
+                                        }
+
+                                        finishTest();
+                                    });
+                                }
+                            }
+                    );
+                }
             });
         }
     }

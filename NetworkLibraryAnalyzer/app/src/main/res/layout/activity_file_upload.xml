@@ -71,7 +71,7 @@
                     android:layout_height="58dp"
                     android:contentDescription="Upload file icon"
                     android:src="@android:drawable/stat_sys_upload"
-                    android:tint="#3157D5" />
+                    app:tint="#3157D5" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -126,7 +126,7 @@
                     android:layout_height="42dp"
                     android:contentDescription="File icon"
                     android:src="@android:drawable/ic_menu_save"
-                    android:tint="#3157D5" />
+                    app:tint="#3157D5" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -236,6 +236,14 @@
                         android:textColor="#172033"
                         android:textSize="15sp" />
 
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/ktorCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:text="Ktor"
+                        android:textColor="#172033"
+                        android:textSize="15sp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -504,7 +512,7 @@
                     android:layout_height="32dp"
                     android:contentDescription="Success icon"
                     android:src="@android:drawable/checkbox_on_background"
-                    android:tint="#2E7D32" />
+                    app:tint="#2E7D32" />
 
                 <TextView
                     android:id="@+id/successMessage"
