@@ -1,9 +1,79 @@
 package com.example.demo;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 @RestController
 public class MainController {
+
+    // =====================================================
+    // UPLOAD SETTINGS (used by the Android app)
+    // =====================================================
+
+    // Folder where uploaded files are saved.
+    private static final Path UPLOAD_DIR = Paths.get("uploads");
+
+
+    // =====================================================
+    // FILE UPLOAD
+    //   POST /upload  (multipart/form-data)
+    //   field "file"    : the file (required)
+    //   field "library" : HttpURLConnection | OkHttp | Retrofit | Volley (optional)
+    // =====================================================
+
+    @PostMapping("/upload")
+    public ResponseEntity<FileUpload> uploadFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "library", defaultValue = "Unknown") String library
+    ) {
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(
+                    new FileUpload(false, "No file received.", null, 0, library)
+            );
+        }
+
+        try {
+            Files.createDirectories(UPLOAD_DIR);
+
+            // Clean the file name to prevent path traversal.
+            String original = file.getOriginalFilename() == null
+                    ? "file"
+                    : Paths.get(file.getOriginalFilename()).getFileName().toString();
+            String safeName = original.replaceAll("[^a-zA-Z0-9._-]", "_");
+            String storedName = System.currentTimeMillis() + "-" + safeName;
+
+            Files.copy(
+                    file.getInputStream(),
+                    UPLOAD_DIR.resolve(storedName),
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+
+            return ResponseEntity.ok(
+                    new FileUpload(true, "File uploaded successfully", original, file.getSize(), library)
+            );
+
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new FileUpload(false, "Could not save file: " + e.getMessage(), null, 0, library)
+            );
+        }
+    }
+
+
+
+    // =====================================================
+    // YOUR EXISTING ENDPOINTS (unchanged)
+    // =====================================================
+
     @GetMapping("/info")
     public String getInfo() {
         return "Response From the Backend";

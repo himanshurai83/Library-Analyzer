@@ -260,7 +260,7 @@ public class StartNewTest extends AppCompatActivity {
 
                 private void callUsingRetrofit(String api, String method) {
 
-                    String baseUrl = "http://192.168.1.25:8080/";
+                    String baseUrl = "http://192.168.1.11:8080/";
 
                     Retrofit retrofit = new Retrofit.Builder()
                             .baseUrl(baseUrl)
