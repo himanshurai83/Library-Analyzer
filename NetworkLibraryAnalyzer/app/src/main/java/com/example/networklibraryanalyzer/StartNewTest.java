@@ -172,8 +172,176 @@ public class StartNewTest extends AppCompatActivity {
 
                         } else {
 
+<<<<<<< HEAD
                             txtStatus.setText("COMPLETED");
                             txtStatus.setTextColor(Color.parseColor("#15803D"));
+=======
+                    switch (method.toUpperCase()) {
+                        case "GET": volleyMethod = Request.Method.GET; break;
+                        case "POST": volleyMethod = Request.Method.POST; break;
+                        case "PUT": volleyMethod = Request.Method.PUT; break;
+                        case "DELETE": volleyMethod = Request.Method.DELETE; break;
+                        case "PATCH": volleyMethod = Request.Method.PATCH; break;
+                        case "HEAD": volleyMethod = Request.Method.HEAD; break;
+                        case "OPTIONS": volleyMethod = Request.Method.OPTIONS; break;
+                        default: throw new IllegalArgumentException("Unsupported method");
+                    }
+
+                    StringRequest request = new StringRequest(
+                            volleyMethod,
+                            api,
+
+                            response -> {
+                                long endTime = System.nanoTime();
+
+                                double responseTime =
+                                        (endTime - startTime) / 1_000_000.0;
+
+                                String result =
+                                        "Network Library: Volley\n\n" +
+                                                "HTTP Method: GET\n\n" +
+                                                "API URL: /info\n\n" +
+                                                "Status Code: 200 (successful response)\n\n" +
+                                                String.format(
+                                                        java.util.Locale.US,
+                                                        "Response Time: %.2f ms\n\n",
+                                                        responseTime
+                                                ) +
+                                                "API Response:\n" + response;
+
+                                txtRes.setText(result);
+                                finishTest();
+                            },
+
+                            error -> {
+                                String message = "Volley request failed.";
+
+                                if (error.networkResponse != null) {
+                                    message += "\nStatus Code: " +
+                                            error.networkResponse.statusCode;
+                                } else if (error.getMessage() != null) {
+                                    message += "\n" + error.getMessage();
+                                }
+
+                                txtRes.setText(message);
+                                finishTest();
+                            }
+                    );
+
+                    // Avoid using a cached response for this performance test.
+                    request.setShouldCache(false);
+
+                    request.setRetryPolicy(new DefaultRetryPolicy(
+                            5000,
+                            0,
+                            DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+                    ));
+
+                    queue.add(request);
+                }
+
+                private void callUsingRetrofit(String api, String method) {
+
+                    String baseUrl = "http://192.168.1.11:8080/";
+
+                    Retrofit retrofit = new Retrofit.Builder()
+                            .baseUrl(baseUrl)
+                            .build();
+
+                    RetrofitApi retrofitApi =
+                            retrofit.create(RetrofitApi.class);
+
+                    // Extract relative endpoint
+                    String endpoint = api.replace(baseUrl, "");
+
+                    String json = "{\"name\":\"Rahul\",\"age\":22,\"course\":\"Android\"}";
+
+                    RequestBody body = RequestBody.create(
+                            MediaType.parse("application/json; charset=utf-8"),
+                            json
+                    );
+
+                    retrofit2.Call<ResponseBody> call;
+
+                    switch (method.toUpperCase(Locale.ROOT)) {
+
+                        case "GET":
+                            call = retrofitApi.get(endpoint);
+                            break;
+
+                        case "POST":
+                            call = retrofitApi.post(endpoint, body);
+                            break;
+
+                        case "PUT":
+                            call = retrofitApi.put(endpoint, body);
+                            break;
+
+                        case "PATCH":
+                            call = retrofitApi.patch(endpoint, body);
+                            break;
+
+                        case "DELETE":
+                            call = retrofitApi.delete(endpoint);
+                            break;
+
+                        case "HEAD":
+                            call = retrofitApi.head(endpoint);
+                            break;
+
+                        case "OPTIONS":
+                            call = retrofitApi.options(endpoint);
+                            break;
+
+                        default:
+                            finishTest();
+                            runOnUiThread(() ->
+                                    txtRes.setText("Unsupported HTTP method")
+                            );
+                            return;
+                    }
+
+                    long startTime = System.nanoTime();
+
+                    call.enqueue(new retrofit2.Callback<ResponseBody>() {
+
+                        @Override
+                        public void onResponse(
+                                retrofit2.Call<ResponseBody> call,
+                                Response<ResponseBody> response) {
+
+                            long endTime = System.nanoTime();
+
+                            double responseTime =
+                                    (endTime - startTime) / 1_000_000.0;
+
+                            String responseString = "";
+
+                            try {
+                                if (response.body() != null) {
+                                    responseString = response.body().string();
+                                } else if (response.errorBody() != null) {
+                                    responseString = response.errorBody().string();
+                                }
+
+                            } catch (IOException e) {
+                                responseString = "Error reading response: " + e.getMessage();
+                            }
+
+                            String result =
+                                    "Network Library: Retrofit\n\n" +
+                                            "HTTP Method: " + method + "\n\n" +
+                                            "API URL: " + api + "\n\n" +
+                                            "Status Code: " + response.code() + "\n\n" +
+                                            String.format(Locale.US,
+                                                    "Response Time: %.2f ms\n\n",
+                                                    responseTime) +
+                                            "API Response:\n" + responseString;
+
+                            runOnUiThread(() -> txtRes.setText(result));
+
+                            finishTest();
+>>>>>>> 8639bc917f4fba07aa7dd404a336f172cf23e210
                         }
 
                         finishTest();
