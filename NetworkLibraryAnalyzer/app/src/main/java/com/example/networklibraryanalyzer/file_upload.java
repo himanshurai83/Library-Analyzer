@@ -58,6 +58,20 @@ import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
 
+// Ktor (Kotlin library, called from Java)
+import io.ktor.client.HttpClient;
+import io.ktor.client.HttpClientJvmKt;
+import io.ktor.client.request.forms.FormBuildersKt;
+import io.ktor.client.request.forms.FormDslKt;
+import io.ktor.client.request.forms.FormPart;
+import io.ktor.client.statement.HttpResponse;
+import io.ktor.http.HeadersBuilder;
+import io.ktor.http.HttpHeaders;
+import io.ktor.http.content.PartData;
+import kotlin.Unit;
+import kotlin.coroutines.EmptyCoroutineContext;
+import kotlinx.coroutines.BuildersKt;
+
 public class file_upload extends AppCompatActivity {
 
     // =====================================================
@@ -67,10 +81,13 @@ public class file_upload extends AppCompatActivity {
     private ActivityFileUploadBinding binding;
 
     // Backend server URL.
-    private static final String BASE_URL = "http://192.168.1.11:8080";
+    private static final String BASE_URL = "http://3.107.213.99:8080";
 
-    // Stores the selected file URI.
-    private Uri selectedUri;
+    // Stores ALL selected file URIs (the user can add more files later).
+    private final List<Uri> selectedUris = new ArrayList<>();
+
+    // Maximum number of files that can be selected (files are read into memory).
+    private static final int MAX_FILES = 10;
 
     // File picker launcher.
     private ActivityResultLauncher<String> filePicker;
@@ -98,43 +115,60 @@ public class file_upload extends AppCompatActivity {
         setContentView(binding.getRoot());
 
 
-        // Register Android file picker.
+        // Register Android file picker (multiple files).
         filePicker = registerForActivityResult(
-                new ActivityResultContracts.GetContent(),
-                uri -> {
+                new ActivityResultContracts.GetMultipleContents(),
+                uris -> {
 
-                    if (uri != null) {
-
-                        // Store selected file.
-                        selectedUri = uri;
-
-                        // Show selected file card.
-                        binding.fileCard.setVisibility(View.VISIBLE);
-
-                        // Display selected file name.
-                        binding.fileName.setText(
-                                getFileName(uri)
-                        );
-
-                        // Update status.
-                        binding.status.setText(
-                                "File selected successfully!"
-                        );
-
-                        binding.infoUploadStatus.setText(
-                                "File ready for analysis"
-                        );
-
-                        // Hide previous success message.
-                        binding.successCard.setVisibility(View.GONE);
-
-                        // Update information and performance.
-                        updateUploadingInformation();
-                        resetUploadingPerformance();
-
-                        // Update button.
-                        updateStartButton();
+                    if (uris == null || uris.isEmpty()) {
+                        return;
                     }
+
+                    // Only 1 to MAX_FILES files can be selected at one time.
+                    if (uris.size() > MAX_FILES) {
+
+                        Toast.makeText(
+                                this,
+                                "Select only 1 to " + MAX_FILES + " files at one time. "
+                                        + "You selected " + uris.size() + ".",
+                                Toast.LENGTH_LONG
+                        ).show();
+
+                        return;
+                    }
+
+                    int added = 0;
+                    boolean limitReached = false;
+
+                    for (Uri uri : uris) {
+
+                        // Skip files that are already in the list.
+                        if (selectedUris.contains(uri)) {
+                            continue;
+                        }
+
+                        if (selectedUris.size() >= MAX_FILES) {
+                            limitReached = true;
+                            break;
+                        }
+
+                        selectedUris.add(uri);
+                        added++;
+                    }
+
+                    if (limitReached) {
+                        Toast.makeText(
+                                this,
+                                "Maximum " + MAX_FILES + " files allowed",
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    }
+
+                    refreshSelectedFiles();
+
+                    binding.status.setText(
+                            added + " file(s) added"
+                    );
                 }
         );
 
@@ -160,6 +194,15 @@ public class file_upload extends AppCompatActivity {
         binding.pickCard.setOnClickListener(v -> {
 
             filePicker.launch("*/*");
+
+        });
+
+
+        // Remove all selected files.
+        binding.clearFilesButton.setOnClickListener(v -> {
+
+            selectedUris.clear();
+            refreshSelectedFiles();
 
         });
 
@@ -191,7 +234,8 @@ public class file_upload extends AppCompatActivity {
                 binding.httpURLConnectionCheck,
                 binding.okHttpCheck,
                 binding.retrofitCheck,
-                binding.volleyCheck
+                binding.volleyCheck,
+                binding.ktorCheck
 
         };
 
@@ -233,20 +277,94 @@ public class file_upload extends AppCompatActivity {
 
     private void updateStartButton() {
 
-        // Check file selection.
-        boolean fileSelected = selectedUri != null;
+        // Check file selection (at least one file).
+        boolean fileSelected = !selectedUris.isEmpty();
 
         // Check library selection.
         boolean librarySelected =
                 binding.httpURLConnectionCheck.isChecked()
                         || binding.okHttpCheck.isChecked()
                         || binding.retrofitCheck.isChecked()
-                        || binding.volleyCheck.isChecked();
+                        || binding.volleyCheck.isChecked()
+                        || binding.ktorCheck.isChecked();
 
         // Enable button only if both conditions are true.
         binding.uploadButton.setEnabled(
                 fileSelected && librarySelected
         );
+
+    }
+
+
+    // =====================================================
+    // 7B. REFRESH THE SELECTED FILES (count, names, size)
+    // =====================================================
+
+    private void refreshSelectedFiles() {
+
+        int count = selectedUris.size();
+        long totalSize = getTotalSize();
+
+        String sizeText = android.text.format.Formatter.formatFileSize(this, totalSize);
+
+        // "3 files - 12 MB" badge next to the heading.
+        binding.fileCountBadge.setText(
+                count + (count == 1 ? " file" : " files")
+                        + (count > 0 ? "  \u2022  " + sizeText : "")
+        );
+
+        if (count == 0) {
+
+            binding.fileCard.setVisibility(View.GONE);
+
+        } else {
+
+            binding.fileCard.setVisibility(View.VISIBLE);
+
+            binding.fileName.setText(
+                    count + (count == 1 ? " file selected" : " files selected")
+            );
+
+            // Numbered list of file names.
+            StringBuilder names = new StringBuilder();
+
+            for (int i = 0; i < count; i++) {
+                names.append(i + 1)
+                        .append(". ")
+                        .append(getFileName(selectedUris.get(i)))
+                        .append("\n");
+            }
+
+            binding.fileList.setText(names.toString().trim());
+
+            binding.status.setText("Ready to upload");
+        }
+
+        // Hide previous success message.
+        binding.successCard.setVisibility(View.GONE);
+
+        updateUploadingInformation();
+        resetUploadingPerformance();
+        updateStartButton();
+
+    }
+
+
+    // Sum of the sizes of all selected files (files with unknown size are skipped).
+    private long getTotalSize() {
+
+        long total = 0;
+
+        for (Uri uri : selectedUris) {
+
+            long size = getFileSize(uri);
+
+            if (size > 0) {
+                total += size;
+            }
+        }
+
+        return total;
 
     }
 
@@ -283,6 +401,12 @@ public class file_upload extends AppCompatActivity {
 
         }
 
+        if (binding.ktorCheck.isChecked()) {
+
+            selectedLibraries.add("Ktor");
+
+        }
+
         return selectedLibraries;
 
     }
@@ -294,105 +418,67 @@ public class file_upload extends AppCompatActivity {
 
     private void updateUploadingInformation() {
 
-        // If no file is selected.
-        if (selectedUri == null) {
+        List<String> libraries = getSelectedLibraries();
 
+        // Selected libraries.
+        binding.infoLibraries.setText(
+                libraries.isEmpty()
+                        ? "No library selected"
+                        : android.text.TextUtils.join(", ", libraries)
+        );
+
+        // If no file is selected.
+        if (selectedUris.isEmpty()) {
+
+            binding.infoFileCount.setText("0");
             binding.infoFileName.setText("No file selected");
             binding.infoFileSize.setText("--");
             binding.infoFileType.setText("--");
-
-            binding.infoLibraries.setText(
-                    getSelectedLibraries().isEmpty()
-                            ? "No library selected"
-                            : android.text.TextUtils.join(
-                            ", ",
-                            getSelectedLibraries()
-                    )
-            );
-
-            binding.infoUploadStatus.setText(
-                    "Waiting for file"
-            );
+            binding.infoUploadStatus.setText("Waiting for file");
 
             return;
         }
 
 
-        // Get file name.
-        String fileName = getFileName(selectedUri);
+        List<String> names = new ArrayList<>();
+        java.util.Set<String> types = new java.util.LinkedHashSet<>();
 
-        // Get file size.
-        long fileSize = getFileSize(selectedUri);
+        for (Uri uri : selectedUris) {
 
-        // Get file type.
-        String fileType = getContentResolver().getType(
-                selectedUri
-        );
+            names.add(getFileName(uri));
 
-
-        // Display file name.
-        binding.infoFileName.setText(fileName);
-
-        // Display file size.
-        if (fileSize >= 0) {
-
-            binding.infoFileSize.setText(
-                    android.text.format.Formatter.formatFileSize(
-                            this,
-                            fileSize
-                    )
-            );
-
-        } else {
-
-            binding.infoFileSize.setText(
-                    "Size unavailable"
-            );
-
+            String type = getContentResolver().getType(uri);
+            types.add(type != null ? type : "Unknown");
         }
 
+        // Number of files.
+        binding.infoFileCount.setText(String.valueOf(selectedUris.size()));
 
-        // Display file type.
+        // File names.
+        binding.infoFileName.setText(
+                android.text.TextUtils.join(", ", names)
+        );
+
+        // Total size.
+        long totalSize = getTotalSize();
+
+        binding.infoFileSize.setText(
+                totalSize > 0
+                        ? android.text.format.Formatter.formatFileSize(this, totalSize)
+                        : "Size unavailable"
+        );
+
+        // File types.
         binding.infoFileType.setText(
-                fileType != null ? fileType : "Unknown"
+                android.text.TextUtils.join(", ", types)
         );
 
-
-        // Display selected libraries.
-        List<String> libraries = getSelectedLibraries();
-
-        if (libraries.isEmpty()) {
-
-            binding.infoLibraries.setText(
-                    "No library selected"
-            );
-
-        } else {
-
-            binding.infoLibraries.setText(
-                    android.text.TextUtils.join(
-                            ", ",
-                            libraries
-                    )
-            );
-
-        }
-
-
-        // Update upload status.
-        if (libraries.isEmpty()) {
-
-            binding.infoUploadStatus.setText(
-                    "Select a network library"
-            );
-
-        } else {
-
-            binding.infoUploadStatus.setText(
-                    "Ready for analysis"
-            );
-
-        }
+        // Upload status.
+        binding.infoUploadStatus.setText(
+                libraries.isEmpty()
+                        ? "Select a network library"
+                        : "Ready for analysis"
+        );
 
     }
 
@@ -464,17 +550,17 @@ public class file_upload extends AppCompatActivity {
 
 
     // =====================================================
-    // 12. START NETWORK ANALYSIS (REAL UPLOAD)
+    // 12. START NETWORK ANALYSIS (REAL UPLOAD OF ALL FILES)
     // =====================================================
 
     private void startNetworkAnalysis() {
 
-        // Validate file.
-        if (selectedUri == null) {
+        // Validate files.
+        if (selectedUris.isEmpty()) {
 
             Toast.makeText(
                     this,
-                    "Please select a file first!",
+                    "Please select at least one file first!",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -504,15 +590,23 @@ public class file_upload extends AppCompatActivity {
         binding.successCard.setVisibility(View.GONE);
 
         binding.status.setText("Uploading...");
-        binding.infoUploadStatus.setText("Uploading to " + BASE_URL);
+        binding.infoUploadStatus.setText(
+                "Uploading " + selectedUris.size() + " file(s) to " + BASE_URL
+        );
 
 
-        // File information.
-        final Uri uri = selectedUri;
-        final String fileName = getFileName(uri);
+        // Copy of the selected files (the list may change while uploading).
+        final List<Uri> uris = new ArrayList<>(selectedUris);
+        final List<String> fileNames = new ArrayList<>();
+        final List<String> mimeTypes = new ArrayList<>();
 
-        String type = getContentResolver().getType(uri);
-        final String mimeType = type != null ? type : "application/octet-stream";
+        for (Uri uri : uris) {
+
+            fileNames.add(getFileName(uri));
+
+            String type = getContentResolver().getType(uri);
+            mimeTypes.add(type != null ? type : "application/octet-stream");
+        }
 
 
         // Upload in the background.
@@ -520,8 +614,20 @@ public class file_upload extends AppCompatActivity {
 
             try {
 
-                // Read the file once. All libraries send the same bytes.
-                byte[] data = UploadClient.readBytes(getContentResolver(), uri);
+                // Read every file once. All libraries send the same bytes.
+                List<byte[]> allData = new ArrayList<>();
+                long totalBytes = 0;
+
+                for (Uri uri : uris) {
+
+                    byte[] bytes = UploadClient.readBytes(getContentResolver(), uri);
+
+                    allData.add(bytes);
+                    totalBytes += bytes.length;
+                }
+
+                final int fileCount = allData.size();
+                final long totalSizeBytes = totalBytes;
 
                 UploadClient client = new UploadClient(getApplicationContext(), BASE_URL);
 
@@ -539,21 +645,41 @@ public class file_upload extends AppCompatActivity {
                     long bestMs = Long.MAX_VALUE;
                     int successCount = 0;
 
+                    // One run = upload ALL files one after another.
                     for (int i = 0; i < UPLOAD_RUNS; i++) {
 
-                        UploadClient.Result result =
-                                client.upload(library, data, fileName, mimeType);
+                        long runMs = 0;
+                        boolean runOk = true;
 
-                        if (result.success) {
+                        for (int f = 0; f < fileCount; f++) {
+
+                            UploadClient.Result result = client.upload(
+                                    library,
+                                    allData.get(f),
+                                    fileNames.get(f),
+                                    mimeTypes.get(f)
+                            );
+
+                            if (result.success) {
+
+                                runMs += result.timeMs;
+
+                            } else {
+
+                                runOk = false;
+
+                                lastError = library + " (" + fileNames.get(f) + "): HTTP "
+                                        + result.code + " " + result.message;
+
+                                break;
+                            }
+                        }
+
+                        if (runOk) {
 
                             successCount++;
-                            totalMs += result.timeMs;
-                            bestMs = Math.min(bestMs, result.timeMs);
-
-                        } else {
-
-                            lastError = library + ": HTTP " + result.code
-                                    + " " + result.message;
+                            totalMs += runMs;
+                            bestMs = Math.min(bestMs, runMs);
                         }
                     }
 
@@ -562,7 +688,7 @@ public class file_upload extends AppCompatActivity {
                         anySuccess = true;
 
                         long avgMs = Math.max(totalMs / successCount, 1);
-                        double megabytes = data.length / (1024.0 * 1024.0);
+                        double megabytes = totalSizeBytes / (1024.0 * 1024.0);
                         double throughput = megabytes / (avgMs / 1000.0);
 
                         timeText.append(library).append(": ")
@@ -598,8 +724,8 @@ public class file_upload extends AppCompatActivity {
 
                 android.util.Log.d(
                         "NETWORK_ANALYSIS",
-                        "File: " + fileName
-                                + "\nSize: " + data.length + " bytes"
+                        "Files: " + fileCount + " " + fileNames
+                                + "\nTotal size: " + totalSizeBytes + " bytes"
                                 + "\nBackend URL: " + BASE_URL
                                 + "\nUpload time:\n" + timeResult
                                 + "\nSuccess rate:\n" + rateResult
@@ -624,7 +750,8 @@ public class file_upload extends AppCompatActivity {
                         binding.infoUploadStatus.setText("Uploaded to server");
 
                         binding.successMessage.setText(
-                                "File uploaded to " + BASE_URL
+                                fileCount + (fileCount == 1 ? " file" : " files")
+                                        + " uploaded to " + BASE_URL
                         );
 
                         binding.successCard.setVisibility(View.VISIBLE);
@@ -658,7 +785,7 @@ public class file_upload extends AppCompatActivity {
                         return;
                     }
 
-                    binding.status.setText("Could not read the selected file");
+                    binding.status.setText("Could not read the selected files");
                     binding.infoUploadStatus.setText("Failed");
 
                     Toast.makeText(
@@ -739,7 +866,7 @@ public class file_upload extends AppCompatActivity {
 
 
     // =====================================================
-    // 15. UPLOAD CLIENT (HttpURLConnection, OkHttp, Retrofit, Volley)
+    // 15. UPLOAD CLIENT (HttpURLConnection, OkHttp, Retrofit, Volley, Ktor)
     // =====================================================
 
     static class UploadClient {
@@ -853,7 +980,7 @@ public class file_upload extends AppCompatActivity {
 
         // =====================================================
         // READ THE SELECTED FILE INTO MEMORY
-        // (all four libraries send the same bytes, so the test is fair)
+        // (all libraries send the same bytes, so the test is fair)
         // =====================================================
 
         public static byte[] readBytes(ContentResolver resolver, Uri uri) throws IOException {
@@ -897,6 +1024,9 @@ public class file_upload extends AppCompatActivity {
 
                     case "Volley":
                         return viaVolley(data, fileName, mimeType, library);
+
+                    case "Ktor":
+                        return viaKtor(data, fileName, mimeType, library);
 
                     default:
                         return new Result(false, 0, -1, "Unknown library: " + library);
@@ -1057,6 +1187,55 @@ public class file_upload extends AppCompatActivity {
                 return new Result(false, elapsedMs(start), -1,
                         e.getClass().getSimpleName() + ": " + e.getMessage());
             }
+        }
+
+
+        // -----------------------------------------------------
+        // Ktor (Kotlin library, called from Java with runBlocking)
+        // -----------------------------------------------------
+
+        // One shared client (creating a client per upload would leak threads).
+        private static HttpClient ktorClient;
+
+        private static synchronized HttpClient getKtorClient() {
+            if (ktorClient == null) {
+                // Uses whichever Ktor engine you added (CIO or OkHttp).
+                ktorClient = HttpClientJvmKt.HttpClient(config -> Unit.INSTANCE);
+            }
+            return ktorClient;
+        }
+
+        private Result viaKtor(byte[] data, String fileName,
+                               String mimeType, String library)
+                throws InterruptedException {
+
+            final String url = baseUrl + "/upload";
+            final HttpClient client = getKtorClient();
+
+            // Headers of the "file" part.
+            HeadersBuilder fileHeaders = new HeadersBuilder(8);
+            fileHeaders.append(HttpHeaders.INSTANCE.getContentType(), mimeType);
+            fileHeaders.append(HttpHeaders.INSTANCE.getContentDisposition(),
+                    "filename=\"" + fileName.replace("\"", "_") + "\"");
+
+            // Multipart body: fields "library" and "file".
+            final List<PartData> parts = FormDslKt.formData(
+                    new FormPart<String>("library", library,
+                            new HeadersBuilder(8).build()),
+                    new FormPart<byte[]>("file", data, fileHeaders.build())
+            );
+
+            long start = System.nanoTime();
+
+            // Ktor calls are "suspend" functions, so we run them with runBlocking.
+            // (We are already on a background thread, so blocking is fine.)
+            HttpResponse response = BuildersKt.<HttpResponse>runBlocking(
+                    EmptyCoroutineContext.INSTANCE,
+                    (scope, continuation) -> FormBuildersKt.submitFormWithBinaryData(
+                            client, url, parts, request -> Unit.INSTANCE, continuation)
+            );
+
+            return finish(start, response.getStatus().getValue(), "");
         }
 
 

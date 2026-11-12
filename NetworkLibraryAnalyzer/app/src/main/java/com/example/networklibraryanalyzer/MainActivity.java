@@ -15,7 +15,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
 
-    Button getRes,btnApiTest,btnHistory,btnComparison,btnUploadFile,btnResults;
+    Button getRes,btnApiTest,btnHistory,btnComparison,btnUploadFile,btnResults,btnDownloadFile;
     TextView txtRes;
 
     @Override
@@ -47,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
         btnHistory = findViewById(R.id.btnHistory);
         btnUploadFile = findViewById(R.id.btnFileUpload);
         btnResults=findViewById(R.id.btnResults);
+        btnDownloadFile=findViewById(R.id.btnDownloadFile);
 
         btnApiTest.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -64,6 +65,16 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent);
             }
         });
+
+        btnDownloadFile.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent =new Intent(MainActivity.this, file_download.class);
+                startActivity(intent);
+            }
+
+        });
+
         btnResults.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

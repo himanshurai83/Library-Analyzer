@@ -1,15 +1,29 @@
 package com.example.demo;
 
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 
 @RestController
 public class MainController {
@@ -26,7 +40,7 @@ public class MainController {
     // FILE UPLOAD
     //   POST /upload  (multipart/form-data)
     //   field "file"    : the file (required)
-    //   field "library" : HttpURLConnection | OkHttp | Retrofit | Volley (optional)
+    //   field "library" : HttpURLConnection | OkHttp | Retrofit | Volley | Ktor (optional)
     // =====================================================
 
     @PostMapping("/upload")
@@ -66,6 +80,67 @@ public class MainController {
                     new FileUpload(false, "Could not save file: " + e.getMessage(), null, 0, library)
             );
         }
+    }
+
+
+    // =====================================================
+    // FILE DOWNLOAD (used by the Android "Download File" page)
+    //   GET /files                     -> list of files in the "uploads" folder
+    //                                     [{ "name": "...", "size": 123 }, ...]
+    //   GET /download/{name}           -> the file itself
+    //   GET /download/{name}?library=X -> same ("library" is only used in error messages)
+    // =====================================================
+
+    @GetMapping("/files")
+    public List<Map<String, Object>> listFiles() throws IOException {
+
+        if (!Files.isDirectory(UPLOAD_DIR)) {
+            return List.of();
+        }
+
+        try (Stream<Path> stream = Files.list(UPLOAD_DIR)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    // Stored names start with a timestamp, so this shows the newest first.
+                    .sorted(Comparator.reverseOrder())
+                    .map(p -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("name", p.getFileName().toString());
+                        try {
+                            item.put("size", Files.size(p));
+                        } catch (IOException e) {
+                            item.put("size", -1);
+                        }
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+        }
+    }
+
+    @GetMapping("/download/{name:.+}")
+    public ResponseEntity<?> downloadFile(
+            @PathVariable("name") String name,
+            @RequestParam(value = "library", defaultValue = "Unknown") String library
+    ) throws IOException {
+
+        Path baseDir = UPLOAD_DIR.toAbsolutePath().normalize();
+        Path file = baseDir.resolve(name).normalize();
+
+        // Block "../" tricks: the file must be inside the uploads folder.
+        if (!file.startsWith(baseDir) || !Files.isRegularFile(file)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new FileDownload(false, "File not found", name, 0, library));
+        }
+
+        Resource resource = new UrlResource(file.toUri());
+
+        return ResponseEntity.ok()
+                .contentLength(Files.size(file))
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(name).build().toString())
+                .body(resource);
     }
 
 
