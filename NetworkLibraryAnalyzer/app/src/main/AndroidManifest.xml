@@ -58,6 +58,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+<<<<<<< HEAD
         <activity
             android:name=".MainActivity2"
             android:exported="false"
@@ -68,6 +69,8 @@
             android:exported="false"
             android:theme="@style/Theme.NetworkLibraryAnalyzer"
             android:windowSoftInputMode="adjustResize" />
+=======
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
     </application>
 
 </manifest>

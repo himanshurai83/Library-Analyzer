@@ -1,7 +1,7 @@
 package com.example.networklibraryanalyzer;
 
+import android.graphics.Color;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+<<<<<<< HEAD
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,6 +38,11 @@ import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Response;
 import retrofit2.Retrofit;
+=======
+import com.google.android.material.chip.Chip;
+import okhttp3.*;
+
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
 
 public class StartNewTest extends AppCompatActivity {
 
@@ -47,11 +53,20 @@ public class StartNewTest extends AppCompatActivity {
             "{\"name\":\"Rahul\",\"age\":22,\"course\":\"Android\"}";
 
     Button btnStartTest;
+<<<<<<< HEAD
     TextView txtRes;
     Spinner libraryType, methodType;
+=======
+    TextView txtRes,txtStatus;
+    Spinner libraryType,methodType;
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
     ProgressBar progressBar;
     EditText editEndPoint;
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
     private void startLoading() {
         progressBar.setVisibility(View.VISIBLE);
         btnStartTest.setEnabled(false);
@@ -87,6 +102,7 @@ public class StartNewTest extends AppCompatActivity {
         };
 
         editEndPoint = findViewById(R.id.editEndpoint);
+        editEndPoint.setText("/info");
         for (int id : chipIds) {
             Chip currentChip = findViewById(id);
             currentChip.setOnClickListener(v -> {
@@ -98,6 +114,7 @@ public class StartNewTest extends AppCompatActivity {
 
         btnStartTest = findViewById(R.id.btnStartTest);
         txtRes = findViewById(R.id.txtResponse);
+        txtStatus = findViewById(R.id.txtStatus);
         txtRes.setVisibility(View.GONE);
 
         libraryType = findViewById(R.id.spinnerLibrary);
@@ -385,6 +402,7 @@ public class StartNewTest extends AppCompatActivity {
                     long endTime = System.nanoTime();
                     double responseTime = (endTime - startTime) / 1_000_000.0;
 
+<<<<<<< HEAD
                     if (res.isSuccessful()) {
                         String result =
                                 "Network Library: OkHttp\n\n" +
@@ -444,9 +462,35 @@ public class StartNewTest extends AppCompatActivity {
                         while ((line = reader.readLine()) != null) {
                             response.append(line).append("\n");
                         }
+=======
+                    LibrariesMethods methods = new LibrariesMethods();
+
+                    switch (selectedLibrary) {
+                        case "HttpURLConnection":
+                            methods.callUsingHttpURLConnection(api, selectedMethod, this::displayResponse);
+                            break;
+
+                        case "OkHttp":
+                            methods.callUsingOkHttp(api, selectedMethod, this::displayResponse);
+                            break;
+
+                        case "Retrofit":
+                            methods.callUsingRetrofit(api, selectedMethod, this::displayResponse);
+                            break;
+
+                        case "Volley":
+                            methods.callUsingVolley(api, selectedMethod, StartNewTest.this, this::displayResponse);
+                            break;
+
+                        case "Ktor":
+                            methods.callUsingKtor(api, selectedMethod,this::displayResponse);
+                            break;
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
                     }
                 }
+                private void displayResponse(String response) {
 
+<<<<<<< HEAD
                 long endTime = System.nanoTime();
                 double responseTime = (endTime - startTime) / 1_000_000.0;
 
@@ -467,6 +511,34 @@ public class StartNewTest extends AppCompatActivity {
                 runOnUiThread(() ->
                         txtRes.setText("Error: " + e.getClass().getSimpleName() +
                                 "\n" + e.getMessage()));
+=======
+                    runOnUiThread(() -> {
+
+                        txtRes.setText(response);
+
+                        if (response.contains("Error") ||
+                                response.contains("Timeout")) {
+
+                            txtStatus.setText("FAILED");
+                            txtStatus.setTextColor(Color.parseColor("#DC2626"));
+
+                        } else {
+
+<<<<<<< HEAD
+                            txtStatus.setText("COMPLETED");
+                            txtStatus.setTextColor(Color.parseColor("#15803D"));
+=======
+                    switch (method.toUpperCase()) {
+                        case "GET": volleyMethod = Request.Method.GET; break;
+                        case "POST": volleyMethod = Request.Method.POST; break;
+                        case "PUT": volleyMethod = Request.Method.PUT; break;
+                        case "DELETE": volleyMethod = Request.Method.DELETE; break;
+                        case "PATCH": volleyMethod = Request.Method.PATCH; break;
+                        case "HEAD": volleyMethod = Request.Method.HEAD; break;
+                        case "OPTIONS": volleyMethod = Request.Method.OPTIONS; break;
+                        default: throw new IllegalArgumentException("Unsupported method");
+                    }
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
 
             } finally {
                 if (connection != null) {
@@ -512,7 +584,59 @@ public class StartNewTest extends AppCompatActivity {
                             finishTest();
                         });
                     }
+<<<<<<< HEAD
                 }
         );
+=======
+
+                    long startTime = System.nanoTime();
+
+                    call.enqueue(new retrofit2.Callback<ResponseBody>() {
+
+                        @Override
+                        public void onResponse(
+                                retrofit2.Call<ResponseBody> call,
+                                Response<ResponseBody> response) {
+
+                            long endTime = System.nanoTime();
+
+                            double responseTime =
+                                    (endTime - startTime) / 1_000_000.0;
+
+                            String responseString = "";
+
+                            try {
+                                if (response.body() != null) {
+                                    responseString = response.body().string();
+                                } else if (response.errorBody() != null) {
+                                    responseString = response.errorBody().string();
+                                }
+
+                            } catch (IOException e) {
+                                responseString = "Error reading response: " + e.getMessage();
+                            }
+
+                            String result =
+                                    "Network Library: Retrofit\n\n" +
+                                            "HTTP Method: " + method + "\n\n" +
+                                            "API URL: " + api + "\n\n" +
+                                            "Status Code: " + response.code() + "\n\n" +
+                                            String.format(Locale.US,
+                                                    "Response Time: %.2f ms\n\n",
+                                                    responseTime) +
+                                            "API Response:\n" + responseString;
+
+                            runOnUiThread(() -> txtRes.setText(result));
+
+                            finishTest();
+>>>>>>> 8639bc917f4fba07aa7dd404a336f172cf23e210
+                        }
+
+                        finishTest();
+                    });
+                }
+            });
+        }
+>>>>>>> 183bfca168f599f2f2cbd6742469bc2b0443a59c
     }
 }

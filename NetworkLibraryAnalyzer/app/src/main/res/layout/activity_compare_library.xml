@@ -239,23 +239,35 @@
                     android:textSize="13sp" />
 
                 <TextView
+                    android:id="@+id/txtHttpTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="180 ms"
+                    android:text="-- ms"
                     android:textColor="#465064"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <ProgressBar
+                android:id="@+id/progressHttp"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="10dp"
                 android:layout_marginTop="8dp"
                 android:max="200"
-                android:progress="180"
+                android:progress="0"
                 android:progressTint="#64748B"
                 android:progressBackgroundTint="#E3E7EF" />
+
+            <TextView
+                android:id="@+id/txtHttpResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Waiting for response..."
+                android:textColor="#737B8C"
+                android:textSize="12sp"
+                android:maxLines="4" />
         </LinearLayout>
 
         <!-- OkHttp -->
@@ -280,23 +292,35 @@
                     android:textSize="13sp" />
 
                 <TextView
+                    android:id="@+id/txtOkHttpTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="128 ms"
-                    android:textColor="#16845B"
+                    android:text="-- ms"
+                    android:textColor="#465064"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <ProgressBar
+                android:id="@+id/progressOkHttp"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="10dp"
                 android:layout_marginTop="8dp"
                 android:max="200"
-                android:progress="128"
-                android:progressTint="#16A36A"
+                android:progress="0"
+                android:progressTint="#64748B"
                 android:progressBackgroundTint="#E3E7EF" />
+
+            <TextView
+                android:id="@+id/txtOkHttpResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Waiting for response..."
+                android:textColor="#737B8C"
+                android:textSize="12sp"
+                android:maxLines="4" />
         </LinearLayout>
 
         <!-- Retrofit -->
@@ -321,23 +345,35 @@
                     android:textSize="13sp" />
 
                 <TextView
+                    android:id="@+id/txtRetrofitTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="145 ms"
+                    android:text="-- ms"
                     android:textColor="#465064"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <ProgressBar
+                android:id="@+id/progressRetrofit"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="10dp"
                 android:layout_marginTop="8dp"
                 android:max="200"
-                android:progress="145"
-                android:progressTint="#3B82F6"
+                android:progress="0"
+                android:progressTint="#64748B"
                 android:progressBackgroundTint="#E3E7EF" />
+
+            <TextView
+                android:id="@+id/txtRetrofitResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Waiting for response..."
+                android:textColor="#737B8C"
+                android:textSize="12sp"
+                android:maxLines="4" />
         </LinearLayout>
 
         <!-- Volley -->
@@ -362,23 +398,88 @@
                     android:textSize="13sp" />
 
                 <TextView
+                    android:id="@+id/txtVolleyTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="160 ms"
+                    android:text="-- ms"
                     android:textColor="#465064"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <ProgressBar
+                android:id="@+id/progressVolley"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="10dp"
                 android:layout_marginTop="8dp"
                 android:max="200"
-                android:progress="160"
-                android:progressTint="#D97706"
+                android:progress="0"
+                android:progressTint="#64748B"
                 android:progressBackgroundTint="#E3E7EF" />
+
+            <TextView
+                android:id="@+id/txtVolleyResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Waiting for response..."
+                android:textColor="#737B8C"
+                android:textSize="12sp"
+                android:maxLines="4" />
+        </LinearLayout>
+
+        <!-- Ktor -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Ktor"
+                    android:textColor="#465064"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/txtKtorTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="-- ms"
+                    android:textColor="#465064"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/progressKtor"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:max="200"
+                android:progress="0"
+                android:progressTint="#64748B"
+                android:progressBackgroundTint="#E3E7EF" />
+
+            <TextView
+                android:id="@+id/txtKtorResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Waiting for response..."
+                android:textColor="#737B8C"
+                android:textSize="12sp"
+                android:maxLines="4" />
         </LinearLayout>
 
         <!-- Detailed Results -->
