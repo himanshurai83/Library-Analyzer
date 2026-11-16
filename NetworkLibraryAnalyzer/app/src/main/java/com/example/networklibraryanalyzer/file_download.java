@@ -26,6 +26,8 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +43,9 @@ import org.json.JSONObject;
 
 // Download libraries (used by the DownloadClient class at the bottom)
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
 import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.NetworkResponse;
 import com.android.volley.Request;
@@ -102,6 +107,226 @@ public class file_download extends AppCompatActivity {
 
     // Used to avoid a loop when we un-check a box from code.
     private boolean ignoreCheckChange = false;
+
+
+    // =====================================================
+    // 1B. RESULT OF ONE LIBRARY + BEST LIBRARY COMPARISON
+    // =====================================================
+
+    // Result of one library after all runs.
+    private static class LibraryStats {
+
+        final String name;
+        final long avgMs;           // average download time of all files (ms)
+        final double throughput;    // MB/s
+        final long bestMs;          // fastest single run (response time, ms)
+        final int successCount;
+        final int successPercent;   // 0 - 100
+        int score;                  // sum of ranks, lower is better
+        double energyMwh = -1;      // energy per run in mWh (-1 = not measured)
+
+        LibraryStats(String name, long avgMs, double throughput, long bestMs,
+                     int successCount, int successPercent) {
+            this.name = name;
+            this.avgMs = avgMs;
+            this.throughput = throughput;
+            this.bestMs = bestMs;
+            this.successCount = successCount;
+            this.successPercent = successPercent;
+        }
+
+        boolean ok() {
+            return successCount > 0;
+        }
+    }
+
+
+    // Texts shown in the "Best Library" card.
+    private static class BestResult {
+        boolean any = false;
+        String overall = "";
+        String downloadTime = "";
+        String throughput = "";
+        String responseTime = "";
+        String successRate = "";
+        String energy = "";
+        String comparison = "";
+    }
+
+
+    // Adds the rank (1 = best) of every library for one result to "score".
+    // Libraries with the same value get the same rank.
+    private static void addRanks(List<LibraryStats> list, Comparator<LibraryStats> cmp) {
+
+        List<LibraryStats> sorted = new ArrayList<>(list);
+        Collections.sort(sorted, cmp);
+
+        int rank = 1;
+
+        for (int i = 0; i < sorted.size(); i++) {
+
+            if (i > 0 && cmp.compare(sorted.get(i - 1), sorted.get(i)) != 0) {
+                rank = i + 1;
+            }
+
+            sorted.get(i).score += rank;
+        }
+    }
+
+
+    // Best library for one result (if equal, the one with the lower download time).
+    private static LibraryStats pickBest(List<LibraryStats> list, Comparator<LibraryStats> cmp) {
+
+        LibraryStats best = list.get(0);
+
+        for (LibraryStats s : list) {
+
+            int c = cmp.compare(s, best);
+
+            if (c < 0 || (c == 0 && s.avgMs < best.avgMs)) {
+                best = s;
+            }
+        }
+
+        return best;
+    }
+
+
+    // Compares all libraries: download time, throughput, response time, success rate, energy.
+    private static BestResult compareLibraries(List<LibraryStats> all) {
+
+        BestResult result = new BestResult();
+
+        // Only libraries that downloaded at least once can be "best".
+        List<LibraryStats> ok = new ArrayList<>();
+
+        for (LibraryStats s : all) {
+            if (s.ok()) {
+                ok.add(s);
+            }
+        }
+
+        if (ok.isEmpty()) {
+            return result;
+        }
+
+        result.any = true;
+
+        Comparator<LibraryStats> byTime = (a, b) -> Long.compare(a.avgMs, b.avgMs);
+        Comparator<LibraryStats> byThroughput = (a, b) -> Double.compare(b.throughput, a.throughput);
+        Comparator<LibraryStats> byResponse = (a, b) -> Long.compare(a.bestMs, b.bestMs);
+        Comparator<LibraryStats> bySuccess = (a, b) -> Integer.compare(b.successPercent, a.successPercent);
+        Comparator<LibraryStats> byEnergy = (a, b) -> Double.compare(a.energyMwh, b.energyMwh);
+
+        // Energy is compared only when it was measured for every successful library.
+        boolean useEnergy = true;
+
+        for (LibraryStats s : ok) {
+            if (s.energyMwh < 0) {
+                useEnergy = false;
+            }
+        }
+
+        // Best library for each result.
+        LibraryStats bestTime = pickBest(ok, byTime);
+        LibraryStats bestThroughput = pickBest(ok, byThroughput);
+        LibraryStats bestResponse = pickBest(ok, byResponse);
+        LibraryStats bestSuccess = pickBest(ok, bySuccess);
+        LibraryStats bestEnergy = useEnergy ? pickBest(ok, byEnergy) : null;
+
+        // Best overall: the lowest sum of ranks over all results.
+        for (LibraryStats s : ok) {
+            s.score = 0;
+        }
+
+        addRanks(ok, byTime);
+        addRanks(ok, byThroughput);
+        addRanks(ok, byResponse);
+        addRanks(ok, bySuccess);
+
+        if (useEnergy) {
+            addRanks(ok, byEnergy);
+        }
+
+        List<LibraryStats> ranked = new ArrayList<>(ok);
+
+        Collections.sort(ranked, (a, b) -> {
+
+            int c = Integer.compare(a.score, b.score);
+
+            if (c != 0) {
+                return c;
+            }
+
+            c = Integer.compare(b.successPercent, a.successPercent);
+
+            if (c != 0) {
+                return c;
+            }
+
+            return Long.compare(a.avgMs, b.avgMs);
+        });
+
+        LibraryStats overall = ranked.get(0);
+
+        String dot = "  \u2022  ";
+
+        result.overall = "\uD83C\uDFC6 " + overall.name;
+
+        result.downloadTime = bestTime.name + dot + bestTime.avgMs + " ms";
+
+        result.throughput = bestThroughput.name + dot
+                + String.format(Locale.US, "%.2f MB/s", bestThroughput.throughput);
+
+        result.responseTime = bestResponse.name + dot + bestResponse.bestMs + " ms";
+
+        result.successRate = bestSuccess.name + dot + bestSuccess.successPercent + "%";
+
+        result.energy = useEnergy
+                ? bestEnergy.name + dot
+                + String.format(Locale.US, "%.3f mWh per run", bestEnergy.energyMwh)
+                : "Not measured (unplug the charger)";
+
+        // Comparison of all libraries (best first, failed ones at the end).
+        String star = "  \u2605";
+
+        StringBuilder text = new StringBuilder();
+        int place = 1;
+
+        for (LibraryStats s : ranked) {
+
+            text.append(place++).append(". ").append(s.name).append("\n")
+                    .append("Download time: ").append(s.avgMs).append(" ms")
+                    .append(s == bestTime ? star : "").append("\n")
+                    .append("Throughput: ")
+                    .append(String.format(Locale.US, "%.2f MB/s", s.throughput))
+                    .append(s == bestThroughput ? star : "").append("\n")
+                    .append("Response time: ").append(s.bestMs).append(" ms")
+                    .append(s == bestResponse ? star : "").append("\n")
+                    .append("Energy used: ")
+                    .append(s.energyMwh >= 0
+                            ? String.format(Locale.US, "%.3f mWh per run", s.energyMwh)
+                            : "not measured")
+                    .append(s == bestEnergy ? star : "").append("\n")
+                    .append("Success rate: ").append(s.successPercent).append("% (")
+                    .append(s.successCount).append("/").append(DOWNLOAD_RUNS).append(")")
+                    .append(s == bestSuccess ? star : "").append("\n\n");
+        }
+
+        for (LibraryStats s : all) {
+
+            if (!s.ok()) {
+                text.append("-. ").append(s.name).append("\n")
+                        .append("Failed (success rate 0%)\n\n");
+            }
+        }
+
+        text.append("\u2605 = best in that result");
+
+        result.comparison = text.toString();
+
+        return result;
+    }
 
 
     // =====================================================
@@ -394,6 +619,10 @@ public class file_download extends AppCompatActivity {
         binding.performanceThroughput.setText("Not tested");
         binding.performanceResponseTime.setText("Not tested");
         binding.performanceSuccessRate.setText("Not tested");
+        binding.performanceEnergy.setText("Not tested");
+
+        // Hide the old "Best Library" card.
+        binding.bestLibrarySection.setVisibility(View.GONE);
     }
 
 
@@ -457,12 +686,33 @@ public class file_download extends AppCompatActivity {
             String lastError = "";
             long lastTotalBytes = 0;
 
+            // Result of every library (used for the "Best Library" card).
+            List<LibraryStats> allStats = new ArrayList<>();
+
+            // Energy meter (estimates the battery energy used by each library).
+            EnergyMeter meter = new EnergyMeter(getApplicationContext());
+            StringBuilder energyText = new StringBuilder();
+            boolean canMeasure = !meter.isCharging();
+
+            if (canMeasure) {
+                try {
+                    meter.measureBaseline();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    canMeasure = false;
+                }
+            }
+
             for (String library : selectedLibraries) {
 
                 long totalMs = 0;
                 long totalBytesAllRuns = 0;
                 long bestMs = Long.MAX_VALUE;
                 int successCount = 0;
+
+                if (canMeasure) {
+                    meter.start();
+                }
 
                 // One run = download ALL selected files one after another.
                 for (int run = 0; run < DOWNLOAD_RUNS; run++) {
@@ -516,6 +766,16 @@ public class file_download extends AppCompatActivity {
                     }
                 }
 
+                // Stop the energy meter for this library.
+                EnergyMeter.Result energy = canMeasure ? meter.stop() : null;
+
+                // Energy of ONE run (all files) and the size of one run.
+                double perRunEnergy = (energy != null && energy.valid)
+                        ? energy.mWh / DOWNLOAD_RUNS
+                        : -1;
+                double mbPerRun = (successCount > 0 ? totalBytesAllRuns / successCount : 0)
+                        / (1024.0 * 1024.0);
+
                 if (successCount > 0) {
 
                     anySuccess = true;
@@ -526,6 +786,12 @@ public class file_download extends AppCompatActivity {
 
                     double megabytes = avgBytes / (1024.0 * 1024.0);
                     double throughput = megabytes / (avgMs / 1000.0);
+
+                    // Save the result for the "Best Library" card.
+                    LibraryStats stats = new LibraryStats(library, avgMs, throughput, bestMs,
+                            successCount, successCount * 100 / DOWNLOAD_RUNS);
+                    stats.energyMwh = perRunEnergy;
+                    allStats.add(stats);
 
                     timeText.append(library).append(": ").append(avgMs).append(" ms\n");
 
@@ -538,15 +804,42 @@ public class file_download extends AppCompatActivity {
 
                 } else {
 
+                    allStats.add(new LibraryStats(library, 0, 0, 0, 0, 0));
+
                     timeText.append(library).append(": Failed\n");
                     throughputText.append(library).append(": Failed\n");
                     responseText.append(library).append(": Failed\n");
+                }
+
+                if (energy == null) {
+                    energyText.append(library).append(": Unplug the charger\n");
+                } else if (!energy.valid) {
+                    energyText.append(library).append(": ").append(energy.reason).append("\n");
+                } else if (successCount == 0) {
+                    energyText.append(library).append(": Failed\n");
+                } else {
+                    energyText.append(library).append(": ")
+                            .append(String.format(Locale.US, "%.3f mWh per run", perRunEnergy))
+                            .append(mbPerRun > 0
+                                    ? String.format(Locale.US, " (%.3f mWh/MB)", perRunEnergy / mbPerRun)
+                                    : "")
+                            .append("\n");
                 }
 
                 rateText.append(library).append(": ")
                         .append(successCount * 100 / DOWNLOAD_RUNS).append("% (")
                         .append(successCount).append("/")
                         .append(DOWNLOAD_RUNS).append(")\n");
+
+                // Short pause so the radio calms down before the next library.
+                if (canMeasure) {
+                    try {
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
 
             final boolean success = anySuccess;
@@ -558,6 +851,10 @@ public class file_download extends AppCompatActivity {
             final String throughputResult = throughputText.toString().trim();
             final String responseResult = responseText.toString().trim();
             final String rateResult = rateText.toString().trim();
+            final String energyResult = energyText.toString().trim();
+
+            // Compare all libraries and find the best one.
+            final BestResult best = compareLibraries(allStats);
 
             android.util.Log.d(
                     "NETWORK_ANALYSIS",
@@ -583,6 +880,25 @@ public class file_download extends AppCompatActivity {
                 binding.performanceThroughput.setText(throughputResult);
                 binding.performanceResponseTime.setText(responseResult);
                 binding.performanceSuccessRate.setText(rateResult);
+                binding.performanceEnergy.setText(energyResult);
+
+                // Best library card.
+                if (best.any) {
+
+                    binding.bestOverall.setText(best.overall);
+                    binding.bestDownloadTime.setText(best.downloadTime);
+                    binding.bestThroughput.setText(best.throughput);
+                    binding.bestResponseTime.setText(best.responseTime);
+                    binding.bestSuccessRate.setText(best.successRate);
+                    binding.bestEnergy.setText(best.energy);
+                    binding.comparisonText.setText(best.comparison);
+
+                    binding.bestLibrarySection.setVisibility(View.VISIBLE);
+
+                } else {
+
+                    binding.bestLibrarySection.setVisibility(View.GONE);
+                }
 
                 if (success) {
 
@@ -644,6 +960,172 @@ public class file_download extends AppCompatActivity {
         binding = null;
 
         super.onDestroy();
+    }
+
+
+    // =====================================================
+    // ENERGY METER
+    // Estimates the battery energy used while a test runs.
+    // It reads the battery current about every 100 ms and adds up
+    // current x voltage x time. The idle power measured before the test
+    // is subtracted, so only the extra energy of the test is left.
+    // The phone must NOT be charging. The result is an ESTIMATE.
+    // =====================================================
+
+    static class EnergyMeter {
+
+        static class Result {
+            final boolean valid;     // false when the energy could not be measured
+            final String reason;     // why it could not be measured
+            final double mWh;        // net energy in milliwatt-hours
+
+            Result(boolean valid, String reason, double mWh) {
+                this.valid = valid;
+                this.reason = reason;
+                this.mWh = mWh;
+            }
+        }
+
+        private final Context context;
+        private final BatteryManager batteryManager;
+
+        private volatile boolean running = false;
+        private Thread thread;
+        private double totalMwh = 0;
+        private long samples = 0;
+        private long startNanos = 0;
+        private double baselineMw = 0;      // idle power in mW
+
+        EnergyMeter(Context context) {
+            this.context = context.getApplicationContext();
+            this.batteryManager = (BatteryManager)
+                    this.context.getSystemService(Context.BATTERY_SERVICE);
+        }
+
+        private Intent batteryIntent() {
+            return context.registerReceiver(null,
+                    new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        }
+
+        // True when a charger or USB cable is connected (values would be wrong).
+        boolean isCharging() {
+            Intent intent = batteryIntent();
+            return intent != null && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+        }
+
+        // Power used right now in mW (0 if the phone does not report it).
+        private double powerMw() {
+
+            if (batteryManager == null) {
+                return 0;
+            }
+
+            long raw = batteryManager.getLongProperty(
+                    BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+
+            if (raw == Long.MIN_VALUE || raw == 0) {
+                return 0;
+            }
+
+            // The sign depends on the phone, so use the absolute value.
+            double microAmps = Math.abs((double) raw);
+
+            // Some phones report milliamps instead of microamps.
+            if (microAmps < 10000) {
+                microAmps *= 1000;
+            }
+
+            Intent intent = batteryIntent();
+            double volts = intent != null
+                    ? intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) / 1000.0
+                    : 0;
+
+            if (volts <= 0) {
+                return 0;
+            }
+
+            return (microAmps / 1000.0) * volts;      // mA x V = mW
+        }
+
+        // Measures the idle power for about 2 seconds. Call it before the test.
+        void measureBaseline() throws InterruptedException {
+
+            double sum = 0;
+            int count = 0;
+
+            for (int i = 0; i < 20; i++) {
+
+                double p = powerMw();
+
+                if (p > 0) {
+                    sum += p;
+                    count++;
+                }
+
+                Thread.sleep(100);
+            }
+
+            baselineMw = count > 0 ? sum / count : 0;
+        }
+
+        void start() {
+
+            totalMwh = 0;
+            samples = 0;
+            running = true;
+            startNanos = System.nanoTime();
+
+            thread = new Thread(() -> {
+
+                long last = System.nanoTime();
+
+                while (running) {
+
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    long now = System.nanoTime();
+                    double p = powerMw();
+
+                    if (p > 0) {
+                        // mW x hours  (1 hour = 3.6e12 nanoseconds)
+                        totalMwh += p * ((now - last) / 3.6e12);
+                        samples++;
+                    }
+
+                    last = now;
+                }
+            });
+
+            thread.start();
+        }
+
+        Result stop() {
+
+            running = false;
+
+            try {
+                if (thread != null) {
+                    thread.join();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            if (samples == 0) {
+                return new Result(false, "Not supported on this phone", 0);
+            }
+
+            double hours = (System.nanoTime() - startNanos) / 3.6e12;
+
+            // Remove the energy the phone would have used anyway (screen, idle).
+            double net = totalMwh - baselineMw * hours;
+
+            return new Result(true, "", Math.max(net, 0));
+        }
     }
 
 
