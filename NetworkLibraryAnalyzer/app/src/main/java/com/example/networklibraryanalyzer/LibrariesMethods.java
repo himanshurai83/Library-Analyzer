@@ -75,7 +75,13 @@ public class LibrariesMethods {
     }
 
 
-    public void callUsingVolley(String api, String method, Context context, ResponseCallback callback) {
+
+    public void callUsingVolley(
+            String api,
+            String method,
+            Context context,
+            ResponseCallback callback) {
+
         executeWithTimeout(callback, safeCallback -> {
 
             RequestQueue queue = Volley.newRequestQueue(context);
@@ -84,7 +90,7 @@ public class LibrariesMethods {
 
             int volleyMethod;
 
-            switch (method.toUpperCase()) {
+            switch (method.toUpperCase(Locale.ROOT)) {
                 case "GET":
                     volleyMethod = Request.Method.GET;
                     break;
@@ -107,14 +113,19 @@ public class LibrariesMethods {
                     volleyMethod = Request.Method.OPTIONS;
                     break;
                 default:
-                    throw new IllegalArgumentException("Unsupported method");
+                    throw new IllegalArgumentException(
+                            "Unsupported method: " + method
+                    );
             }
-            final int[] actualStatusCode = {0};
+
+            int[] actualStatusCode = {0};
+
             StringRequest request = new StringRequest(
                     volleyMethod,
                     api,
 
                     response -> {
+
                         long endTime = System.nanoTime();
 
                         double responseTime =
@@ -124,37 +135,72 @@ public class LibrariesMethods {
                                 "Network Library: Volley\n\n" +
                                         "HTTP Method: " + method + "\n\n" +
                                         "API URL: " + api + "\n\n" +
-                                        "Status Code: "+ actualStatusCode[0] +
-                                        String.format(Locale.US,
+                                        "Status Code: " + actualStatusCode[0] + "\n\n" +
+                                        String.format(
+                                                Locale.US,
                                                 "Response Time: %.2f ms\n\n",
-                                                responseTime) +
+                                                responseTime
+                                        ) +
                                         "API Response:\n" + response;
 
                         safeCallback.onResponse(result);
                     },
 
                     error -> {
-                        String message = "Volley request failed.";
+
+                        long endTime = System.nanoTime();
+
+                        double responseTime =
+                                (endTime - startTime) / 1_000_000.0;
+
+                        int statusCode = -1;
 
                         if (error.networkResponse != null) {
-                            message += "\nStatus Code: " +
-                                    error.networkResponse.statusCode;
-                        } else if (error.getMessage() != null) {
-                            message += "\n" + error.getMessage();
+                            statusCode = error.networkResponse.statusCode;
                         }
 
-                        safeCallback.onResponse(message);
+                        String result =
+                                "Network Library: Volley\n\n" +
+                                        "HTTP Method: " + method + "\n\n" +
+                                        "API URL: " + api + "\n\n" +
+                                        "Status Code: " + statusCode + "\n\n" +
+                                        String.format(
+                                                Locale.US,
+                                                "Response Time: %.2f ms\n\n",
+                                                responseTime
+                                        ) +
+                                        "API Error:\n" + error.getMessage();
+
+                        safeCallback.onResponse(result);
                     }
-            );
+
+            ) {
+
+                @Override
+                protected com.android.volley.Response<String>
+                parseNetworkResponse(
+                        com.android.volley.NetworkResponse response) {
+
+                    actualStatusCode[0] = response.statusCode;
+
+                    return super.parseNetworkResponse(response);
+                }
+            };
 
             request.setShouldCache(false);
 
-            request.setRetryPolicy(new DefaultRetryPolicy(
-                    5000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
-            ));
+            request.setRetryPolicy(
+                    new DefaultRetryPolicy(
+                            5000,
+                            0,
+                            DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+                    )
+            );
+
             queue.add(request);
         });
     }
+
 
     public void callUsingRetrofit(String api, String method, ResponseCallback callback) {
         executeWithTimeout(callback, safeCallback -> {

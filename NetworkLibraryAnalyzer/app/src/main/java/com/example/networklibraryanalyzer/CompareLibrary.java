@@ -18,6 +18,8 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.material.chip.Chip;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +32,7 @@ public class CompareLibrary extends AppCompatActivity {
     private Spinner spinnerMethod, spinnerRuns;
     private EditText editEndpoint;
     private Button btnRunComparison;
+    Chip chip;
 
     private android.widget.TableLayout tableResults;
     private TextView txtFastestLibrary;
@@ -63,16 +66,17 @@ public class CompareLibrary extends AppCompatActivity {
     private static class LibraryStats {
 
         long totalTime = 0;
-        int count = 0;
+
+        // Number of successful HTTP responses (2xx)
         int successCount = 0;
+
+        // Total attempts, including failures and timeouts
+        int attempts = 0;
 
         String lastResponse = "Waiting for response...";
 
-
         private int getStatusCode(String response) {
-
             try {
-
                 java.util.regex.Matcher matcher =
                         java.util.regex.Pattern.compile(
                                 "Status Code:\\s*(\\d{3})"
@@ -81,7 +85,6 @@ public class CompareLibrary extends AppCompatActivity {
                 if (matcher.find()) {
                     return Integer.parseInt(matcher.group(1));
                 }
-
             } catch (Exception e) {
                 Log.e("COMPARE", "Status parsing error", e);
             }
@@ -91,27 +94,33 @@ public class CompareLibrary extends AppCompatActivity {
 
         synchronized void addResult(String response, long time) {
 
-            totalTime += time;
-            count++;
-
+            attempts++;
             lastResponse = response;
 
             int statusCode = getStatusCode(response);
 
+            // Only successful HTTP responses count towards speed.
             if (statusCode >= 200 && statusCode < 300) {
+                totalTime += time;
                 successCount++;
             }
         }
 
         synchronized long getAverage() {
-
-            if (count == 0) return 0;
-
-            return totalTime / count;
+            if (successCount == 0) return -1;
+            return totalTime / successCount;
         }
 
         synchronized int getCount() {
-            return count;
+            return successCount;
+        }
+
+        synchronized int getAttempts() {
+            return attempts;
+        }
+
+        synchronized long getTotalTime() {
+            return totalTime;
         }
 
         synchronized String getResponse() {
@@ -145,6 +154,9 @@ public class CompareLibrary extends AppCompatActivity {
                     return insets;
                 }
         );
+
+
+
 
         // Initialize views
 
@@ -208,6 +220,28 @@ public class CompareLibrary extends AppCompatActivity {
         String[] runOptions = {
                 "5", "10", "30"
         };
+
+
+        int[] chipIds = {
+                R.id.chipInfo,
+                R.id.chipStudent,
+                R.id.chipStudents,
+                R.id.chipStudentId,
+                R.id.chipUsers,
+        };
+
+        editEndpoint.setText("/info");
+        for (int id : chipIds) {
+
+            Chip currentChip = findViewById(id);
+
+            currentChip.setOnClickListener(v -> {
+                String endpoint = ((Chip) v).getText().toString();
+
+                editEndpoint.setText(endpoint);
+                editEndpoint.setSelection(editEndpoint.getText().length());
+            });
+        }
 
         ArrayAdapter<String> runsAdapter =
                 new ArrayAdapter<>(
@@ -278,10 +312,9 @@ public class CompareLibrary extends AppCompatActivity {
             long average = stats.getAverage();
 
             double successRate =
-                    stats.getCount() == 0
+                    stats.getAttempts() == 0
                             ? 0
-                            : stats.successCount * 100.0
-                              / stats.getCount();
+                            : stats.getCount() * 100.0 / stats.getAttempts();
 
             addTableCell(
                     row,
@@ -290,7 +323,9 @@ public class CompareLibrary extends AppCompatActivity {
 
             addTableCell(
                     row,
-                    average + " ms"
+                    stats.getCount() == 0
+                            ? "N/A"
+                            : stats.getAverage() + " ms"
             );
 
             addTableCell(
@@ -412,7 +447,11 @@ public class CompareLibrary extends AppCompatActivity {
             String method,
             int runs) {
 
-        String baseURL = "http://192.168.1.25:8080";
+        //Local API
+        String baseURL = "http://192.168.1.12:8080";
+
+        //AWS server API
+//        String baseURL = "http://3.107.213.99:8080";
 
         String api = baseURL + endpoint;
 
@@ -569,13 +608,32 @@ public class CompareLibrary extends AppCompatActivity {
 
     // Receive individual library response
 
+    private long extractResponseTime(String response, long fallback) {
+
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern.compile(
+                        "Response Time:\\s*([\\d.]+)\\s*ms"
+                ).matcher(response);
+
+        if (matcher.find()) {
+            return Math.round(
+                    Double.parseDouble(matcher.group(1))
+            );
+        }
+
+        return fallback;
+    }
+
     private void onCompareResult(
             String library,
             String result,
             long startTime) {
 
-        long responseTime =
+        long elapsedTime =
                 SystemClock.elapsedRealtime() - startTime;
+
+        long responseTime =
+                extractResponseTime(result, elapsedTime);
 
         LibraryStats stats = statsMap.get(library);
 
@@ -649,67 +707,65 @@ public class CompareLibrary extends AppCompatActivity {
 
     private void showComparisonResults() {
 
-        String fastestLibrary = "";
-
+        String fastestLibrary = "No successful requests";
         long fastestTime = Long.MAX_VALUE;
 
         long totalTime = 0;
-
-        int totalCount = 0;
+        int totalSuccess = 0;
 
         for (String library : libraries) {
 
             LibraryStats stats = statsMap.get(library);
 
+            if (stats == null) continue;
+
+            int successful = stats.getCount();
+
+            // Ignore libraries with zero successful requests
+            if (successful == 0) continue;
+
             long average = stats.getAverage();
 
-            if (stats.getCount() == 0) continue;
-
-            // Find fastest library
-
             if (average < fastestTime) {
-
                 fastestTime = average;
-
                 fastestLibrary = library;
             }
 
-            totalTime += stats.totalTime;
-
-            totalCount += stats.getCount();
+            totalTime += stats.getTotalTime();
+            totalSuccess += successful;
         }
 
-        // Fastest library
+        if (totalSuccess > 0) {
 
-        if (!fastestLibrary.isEmpty()) {
-
-            txtFastestLibrary.setText(
-                    fastestLibrary
-            );
+            txtFastestLibrary.setText(fastestLibrary);
 
             txtFastestTime.setText(
                     fastestTime + " ms average"
             );
-        }
 
-        // Overall average
-
-        if (totalCount > 0) {
-
-            long overallAverage =
-                    totalTime / totalCount;
+            long overallAverage = totalTime / totalSuccess;
 
             txtOverallAverage.setText(
                     overallAverage + " ms"
             );
+
+        } else {
+
+            txtFastestLibrary.setText(
+                    "No successful requests"
+            );
+
+            txtFastestTime.setText("--");
+
+            txtOverallAverage.setText("--");
         }
+
+        updateComparisonTable();
 
         Toast.makeText(
                 this,
-                "Comparison completed successfully",
+                "Comparison completed",
                 Toast.LENGTH_SHORT
         ).show();
-
-        updateComparisonTable();
     }
 }
