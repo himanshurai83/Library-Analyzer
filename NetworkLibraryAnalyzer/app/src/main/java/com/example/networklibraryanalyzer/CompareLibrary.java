@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class CompareLibrary extends AppCompatActivity {
+    private static final String baseURL = "http://3.107.213.99:8080";
 
     private Spinner spinnerMethod, spinnerRuns;
     private EditText editEndpoint;
@@ -447,11 +448,15 @@ public class CompareLibrary extends AppCompatActivity {
             String method,
             int runs) {
 
+<<<<<<< HEAD
         //Local API
         String baseURL = "http://192.168.1.12:8080";
 
         //AWS server API
 //        String baseURL = "http://3.107.213.99:8080";
+=======
+       // String baseURL = "http://192.168.1.25:8080";
+>>>>>>> c84d59f7a8adb1beb1a985fdd104e46c3abdab98
 
         String api = baseURL + endpoint;
 

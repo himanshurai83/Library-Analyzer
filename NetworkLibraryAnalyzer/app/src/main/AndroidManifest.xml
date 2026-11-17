@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Internet permission -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -14,50 +15,66 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NetworkLibraryAnalyzer"
         android:usesCleartextTraffic="true">
+
+        <!-- Main Activity: App Launcher -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
+
+        <!-- API Testing Page -->
         <activity
             android:name=".StartNewTest"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Test History Page -->
         <activity
             android:name=".TestHistory"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Compare Library Page -->
         <activity
             android:name=".CompareLibrary"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- File Upload Page -->
         <activity
             android:name=".file_upload"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.NetworkLibraryAnalyzer"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
+            android:windowSoftInputMode="adjustResize" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+        <!-- Results Page -->
         <activity
             android:name=".Results"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.NetworkLibraryAnalyzer"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
+            android:windowSoftInputMode="adjustResize" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+        <!-- Main Activity 2
+        <activity
+            android:name=".MainActivity2"
+            android:exported="false"
+            android:theme="@style/Theme.NetworkLibraryAnalyzer"
+            android:windowSoftInputMode="adjustResize" />
+-->
+        <!-- File Download Page -->
+        <activity
+            android:name=".file_download"
+            android:exported="false"
+            android:theme="@style/Theme.NetworkLibraryAnalyzer"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

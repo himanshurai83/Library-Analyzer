@@ -16,8 +16,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+<<<<<<< HEAD
+=======
+import com.android.volley.toolbox.StringRequest;
+>>>>>>> c84d59f7a8adb1beb1a985fdd104e46c3abdab98
 import com.google.android.material.chip.Chip;
 import okhttp3.*;
+import retrofit2.http.HEAD;
 
 
 public class StartNewTest extends AppCompatActivity {
@@ -110,17 +115,26 @@ public class StartNewTest extends AppCompatActivity {
             }
         });
 
+<<<<<<< HEAD
             btnStartTest.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+=======
+        btnStartTest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
 
-                    String selectedLibrary = libraryType.getSelectedItem().toString();
-                    String selectedMethod = methodType.getSelectedItem().toString();
+                String selectedLibrary = libraryType.getSelectedItem().toString();
+                String selectedMethod = methodType.getSelectedItem().toString();
+>>>>>>> c84d59f7a8adb1beb1a985fdd104e46c3abdab98
 
-                    startLoading();
+                startLoading();
 
-                    String baseURL = "http://192.168.1.25:8080";
+                String baseURL = "http://192.168.1.25:8080";
 
+                String endpoint = editEndPoint.getText().toString().trim();
+
+<<<<<<< HEAD
                     String endpoint = editEndPoint.getText().toString().trim();
 
                     if (endpoint.isEmpty()) {
@@ -182,3 +196,64 @@ public class StartNewTest extends AppCompatActivity {
     }
 }
 
+=======
+                if (endpoint.isEmpty()) {
+                    editEndPoint.setError("Enter API endpoint");
+                    return;
+                }
+
+                if (!endpoint.startsWith("/")) {
+                    endpoint = "/" + endpoint;
+                }
+
+                String api = baseURL + endpoint;
+
+                LibrariesMethods methods = new LibrariesMethods();
+
+                switch (selectedLibrary) {
+                    case "HttpURLConnection":
+                        methods.callUsingHttpURLConnection(api, selectedMethod, this::displayResponse);
+                        break;
+
+                    case "OkHttp":
+                        methods.callUsingOkHttp(api, selectedMethod, this::displayResponse);
+                        break;
+
+                    case "Retrofit":
+                        methods.callUsingRetrofit(api, selectedMethod, this::displayResponse);
+                        break;
+
+                    case "Volley":
+                        methods.callUsingVolley(api, selectedMethod, StartNewTest.this, this::displayResponse);
+                        break;
+
+                    case "Ktor":
+                        methods.callUsingKtor(api, selectedMethod, this::displayResponse);
+                        break;
+                }
+            }
+
+            private void displayResponse(String response) {
+
+                runOnUiThread(() -> {
+
+                    txtRes.setText(response);
+
+                    if (response.contains("Error") ||
+                            response.contains("Timeout")) {
+
+                        txtStatus.setText("FAILED");
+                        txtStatus.setTextColor(Color.parseColor("#DC2626"));
+
+                    } else {
+
+
+                        txtStatus.setText("COMPLETED");
+                        txtStatus.setTextColor(Color.parseColor("#15803D"));
+                    }
+                });
+            }
+        });
+    }
+}
+>>>>>>> c84d59f7a8adb1beb1a985fdd104e46c3abdab98

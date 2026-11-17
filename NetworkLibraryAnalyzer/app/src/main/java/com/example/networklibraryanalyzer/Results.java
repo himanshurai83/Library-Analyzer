@@ -1,12 +1,13 @@
 
 package com.example.networklibraryanalyzer;
 
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -19,6 +20,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,537 +32,614 @@ import java.util.Locale;
 
 public class Results extends AppCompatActivity {
 
-    // =====================================================
-    // 1. RESULT ITEM CLASS
-    // =====================================================
-    // This class stores the result of each network library.
-    //
-    // BACKEND CONNECTION:
-    // The backend will send these values in JSON format.
-    // We will read those values and store them in this class.
+    private static final String BASE_URL =
+            "http://3.107.213.99:8080";
+
+    private static final String RESULTS_URL =
+            BASE_URL + "/results";
+
+    private LinearLayout container;
+    private TextView fastestName;
+    private TextView fastestTime;
+    private TextView testedFile;
+
+    private final Handler mainHandler =
+            new Handler(Looper.getMainLooper());
 
     private static class ResultItem {
+        String name;
+        double timeMs;
+        double speedMBps;
+        double energyJ;
+        double responseTimeMs;
+        double successRate;
 
-        final String name;
-        final double timeMs;
-        final double speedMBps;
+        ResultItem(String name, double timeMs,
+                   double speedMBps, double energyJ,
+                   double responseTimeMs, double successRate) {
 
-        ResultItem(String name, double timeMs, double speedMBps) {
             this.name = name;
             this.timeMs = timeMs;
             this.speedMBps = speedMBps;
+            this.energyJ = energyJ;
+            this.responseTimeMs = responseTimeMs;
+            this.successRate = successRate;
         }
     }
-
-
-    // =====================================================
-    // 2. ACTIVITY START
-    // =====================================================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // IMPORTANT:
-        // This is the XML layout file name:
-        // activity_view_results.xml
         setContentView(R.layout.activity_results);
 
+        fastestName = findViewById(R.id.fastestName);
+        fastestTime = findViewById(R.id.fastestTime);
+        testedFile = findViewById(R.id.testedFile);
+        container = findViewById(R.id.resultContainer);
 
-        // Find XML views
-        TextView fastestName = findViewById(R.id.fastestName);
-        TextView fastestTime = findViewById(R.id.fastestTime);
-        TextView testedFile = findViewById(R.id.testedFile);
-
-        LinearLayout container = findViewById(R.id.resultContainer);
         Button backButton = findViewById(R.id.backButton);
 
-
-        // Check whether all required XML IDs exist
-        if (fastestName == null ||
-                fastestTime == null ||
-                testedFile == null ||
-                container == null ||
-                backButton == null) {
-
-            throw new IllegalStateException(
-                    "Please check the IDs in activity_view_results.xml"
-            );
-        }
-
-
-        // =================================================
-        // 3. RECEIVE DATA FROM PREVIOUS ACTIVITY
-        // =================================================
-        //
-        // BACKEND CONNECTION:
-        // The upload screen will send the backend response
-        // to this Results activity.
-        //
-        // The JSON response will be received using:
-        // getStringExtra("results_json")
-        //
-        // The uploaded file name will be received using:
-        // getStringExtra("file_name")
-
-        String jsonResponse =
-                getIntent().getStringExtra("results_json");
+        backButton.setOnClickListener(v -> finish());
 
         String fileName =
                 getIntent().getStringExtra("file_name");
 
+        String jsonResponse =
+                getIntent().getStringExtra("results_json");
 
-        // Display uploaded file name
-        if (fileName != null && !fileName.trim().isEmpty()) {
+        if (fileName != null) {
             testedFile.setText(fileName);
-        } else {
-            testedFile.setText("No file information received");
         }
 
-
-        // =================================================
-        // 4. READ BACKEND JSON RESPONSE
-        // =================================================
-
-        List<ResultItem> results = new ArrayList<>();
-
+        // First use results passed from the uploading page.
+        // Otherwise request saved results from Spring Boot.
         if (jsonResponse != null && !jsonResponse.trim().isEmpty()) {
+
+            displayResults(jsonResponse);
+
+        } else {
+
+            testedFile.setText(
+                    fileName != null ? fileName : "Loading server results..."
+            );
+
+            fetchResultsFromBackend();
+        }
+    }
+
+    // Connect to Spring Boot backend.
+    private void fetchResultsFromBackend() {
+
+        fastestName.setText("Loading...");
+        fastestTime.setText("Connecting to backend server");
+
+        new Thread(() -> {
+
+            HttpURLConnection connection = null;
 
             try {
 
-                // Convert backend JSON response into JSONObject
-                JSONObject json = new JSONObject(jsonResponse);
+                URL url = new URL(RESULTS_URL);
 
-                // Check whether backend reports success
-                boolean success = json.optBoolean("success", false);
+                connection =
+                        (HttpURLConnection) url.openConnection();
 
-                if (!success) {
-                    showEmptyMessage(
-                            container,
-                            "Backend did not return successful results."
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+
+                connection.setRequestProperty(
+                        "Accept", "application/json"
+                );
+
+                int responseCode =
+                        connection.getResponseCode();
+
+                InputStream inputStream;
+
+                if (responseCode >= 200 && responseCode < 300) {
+                    inputStream = connection.getInputStream();
+                } else {
+                    inputStream = connection.getErrorStream();
+                }
+
+                if (inputStream == null) {
+                    throw new Exception(
+                            "Server returned HTTP " + responseCode
                     );
+                }
 
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(inputStream)
+                        );
+
+                StringBuilder response =
+                        new StringBuilder();
+
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+
+                reader.close();
+
+                if (responseCode < 200 || responseCode >= 300) {
+                    throw new Exception(
+                            "Server error: HTTP " + responseCode
+                    );
+                }
+
+                String jsonResponse = response.toString();
+
+                mainHandler.post(() ->
+                        displayResults(jsonResponse)
+                );
+
+            } catch (Exception e) {
+
+                e.printStackTrace();
+
+                mainHandler.post(() -> {
+                    fastestName.setText("Connection Failed");
+                    fastestTime.setText(e.getMessage());
+
+                    showMessage(
+                            "Could not connect to the backend. " +
+                                    "Check your server and internet connection."
+                    );
+                });
+
+            } finally {
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+
+        }).start();
+    }
+
+    // Read results from JSON.
+    private void displayResults(String jsonResponse) {
+
+        try {
+
+            List<ResultItem> results =
+                    new ArrayList<>();
+
+            JSONArray array;
+
+            JSONObject root = null;
+
+            if (jsonResponse.trim().startsWith("[")) {
+
+                array = new JSONArray(jsonResponse);
+
+            } else {
+
+                root = new JSONObject(jsonResponse);
+
+                if (!root.optBoolean("success", true)) {
+                    showMessage("Backend returned unsuccessful results.");
                     fastestName.setText("Not available");
                     fastestTime.setText("--");
-
-                    backButton.setOnClickListener(v -> finish());
                     return;
                 }
 
-                // Get file name from JSON if Intent did not provide it
-                String responseFileName =
-                        json.optString("file_name", "");
+                array = root.optJSONArray("results");
 
-                if ((fileName == null || fileName.trim().isEmpty())
-                        && !responseFileName.isEmpty()) {
-
-                    testedFile.setText(responseFileName);
+                if (array == null) {
+                    // Supports a direct Spring Boot list response
+                    // wrapped under another common property.
+                    array = root.optJSONArray("content");
                 }
 
-
-                // Get the results array from backend
-                JSONArray array = json.getJSONArray("results");
-
-
-                // Read every library result
-                for (int i = 0; i < array.length(); i++) {
-
-                    JSONObject item = array.getJSONObject(i);
-
-                    String libraryName =
-                            item.getString("library");
-
-                    double executionTime =
-                            item.getDouble("time_ms");
-
-                    // Speed is optional.
-                    // If backend does not send it, display it as unavailable.
-                    double speed =
-                            item.optDouble("speed_mbps", -1);
-
-                    // Store result
-                    results.add(
-                            new ResultItem(
-                                    libraryName,
-                                    executionTime,
-                                    speed
-                            )
+                if (array == null) {
+                    throw new JSONException(
+                            "Results array not found"
                     );
                 }
 
-            } catch (JSONException e) {
+                String responseFile =
+                        root.optString("file_name", "");
 
-                // JSON parsing failed
-                e.printStackTrace();
+                if (!responseFile.isEmpty()) {
+                    testedFile.setText(responseFile);
+                }
+            }
 
-                showEmptyMessage(
-                        container,
-                        "Unable to read results from the backend."
-                );
+            for (int i = 0; i < array.length(); i++) {
 
-                fastestName.setText("Invalid response");
+                JSONObject item =
+                        array.getJSONObject(i);
+
+                String libraryName =
+                        item.optString(
+                                "library",
+                                item.optString(
+                                        "libraryName",
+                                        "Unknown Library"
+                                )
+                        );
+
+                double time =
+                        item.optDouble(
+                                "time_ms",
+                                item.optDouble("uploadTimeMs", -1)
+                        );
+
+                double speed =
+                        item.optDouble("speed_mbps", -1);
+
+                // Support the existing backend throughputKbps field.
+                if (speed < 0) {
+                    double kbps =
+                            item.optDouble("throughputKbps", -1);
+
+                    if (kbps >= 0) {
+                        speed = kbps / 1024.0;
+                    }
+                }
+
+                double energy =
+                        item.optDouble("energy_j", -1);
+
+                if (energy < 0) {
+                    energy = item.optDouble(
+                            "energy_consumption_j", -1
+                    );
+                }
+
+                double responseTime =
+                        item.optDouble("response_time_ms", -1);
+
+                double successRate =
+                        item.optDouble("success_rate", -1);
+
+                if (successRate < 0) {
+                    successRate =
+                            item.optDouble("successRate", -1);
+                }
+
+                if (time < 0 ||
+                        Double.isNaN(time) ||
+                        Double.isInfinite(time)) {
+                    continue;
+                }
+
+                results.add(new ResultItem(
+                        libraryName,
+                        time,
+                        speed,
+                        energy,
+                        responseTime,
+                        successRate
+                ));
+            }
+
+            if (results.isEmpty()) {
+                fastestName.setText("No Results");
                 fastestTime.setText("--");
-
-                backButton.setOnClickListener(v -> finish());
+                showMessage("No valid library results found.");
                 return;
             }
 
-        } else {
+            showComparison(results);
 
-            // BACKEND CONNECTION TODO:
-            //
-            // No backend response has been received.
-            //
-            // Once the upload activity connects to the backend,
-            // it must pass the actual JSON response using:
-            //
-            // intent.putExtra("results_json", responseBody);
-            //
-            // Do not insert fake results here.
-            // This message will disappear when actual data arrives.
+        } catch (JSONException e) {
 
-            showEmptyMessage(
-                    container,
-                    "No test results received yet. Upload a file and run the analysis."
-            );
+            e.printStackTrace();
 
-            fastestName.setText("Waiting for results");
+            fastestName.setText("Invalid Data");
             fastestTime.setText("--");
 
-            backButton.setOnClickListener(v -> finish());
-            return;
+            showMessage(
+                    "Unable to read the server response. " +
+                            "Please check your JSON format."
+            );
         }
+    }
 
-
-        // =================================================
-        // 5. SORT RESULTS
-        // =================================================
-        // Lower execution time means faster performance.
+    // Compare all network libraries.
+    private void showComparison(List<ResultItem> results) {
 
         Collections.sort(
                 results,
                 (a, b) -> Double.compare(a.timeMs, b.timeMs)
         );
 
+        ResultItem fastest = results.get(0);
 
-        // Check that the backend returned at least one result
-        if (results.isEmpty()) {
+        fastestName.setText(fastest.name);
 
-            showEmptyMessage(
-                    container,
-                    "No library results were found."
-            );
+        StringBuilder summary = new StringBuilder();
 
-            fastestName.setText("Not available");
-            fastestTime.setText("--");
-
-            backButton.setOnClickListener(v -> finish());
-            return;
-        }
-
-
-        // =================================================
-        // 6. DISPLAY FASTEST LIBRARY
-        // =================================================
-
-        ResultItem best = results.get(0);
-
-        fastestName.setText(best.name);
-
-        String fastestInfo = String.format(
+        summary.append(String.format(
                 Locale.US,
-                "%.0f ms",
-                best.timeMs
-        );
+                "Upload Time: %.1f ms",
+                fastest.timeMs
+        ));
 
-        if (best.speedMBps >= 0) {
-            fastestInfo += String.format(
+        if (fastest.speedMBps >= 0) {
+            summary.append(String.format(
                     Locale.US,
-                    " | %.1f MB/s",
-                    best.speedMBps
-            );
+                    "\nThroughput: %.2f MB/s",
+                    fastest.speedMBps
+            ));
         }
 
-        fastestTime.setText(fastestInfo);
+        if (fastest.responseTimeMs >= 0) {
+            summary.append(String.format(
+                    Locale.US,
+                    "\nResponse Time: %.1f ms",
+                    fastest.responseTimeMs
+            ));
+        }
 
+        if (fastest.successRate >= 0) {
+            summary.append(String.format(
+                    Locale.US,
+                    "\nSuccess Rate: %.1f%%",
+                    fastest.successRate
+            ));
+        }
 
-        // =================================================
-        // 7. DISPLAY DYNAMIC COMPARISON ROWS
-        // =================================================
-        //
-        // BACKEND CONNECTION:
-        // Each object inside the JSON results array
-        // creates one row on the Results page.
-        //
-        // If the backend returns 4 libraries,
-        // this code creates 4 rows automatically.
+        if (fastest.energyJ >= 0) {
+            summary.append(String.format(
+                    Locale.US,
+                    "\nEnergy: %.3f J",
+                    fastest.energyJ
+            ));
+        }
+
+        fastestTime.setText(summary.toString());
+
+        double lowestEnergy = Double.MAX_VALUE;
+        String lowestEnergyName = null;
+
+        for (ResultItem item : results) {
+
+            if (item.energyJ >= 0 &&
+                    item.energyJ < lowestEnergy) {
+
+                lowestEnergy = item.energyJ;
+                lowestEnergyName = item.name;
+            }
+        }
 
         container.removeAllViews();
 
-        for (int i = 0; i < results.size(); i++) {
+        TextView heading = new TextView(this);
 
-            View row = buildRow(
-                    i + 1,
-                    results.get(i),
-                    best.timeMs
-            );
-
-            container.addView(row);
-        }
-
-
-        // =================================================
-        // 8. BACK BUTTON
-        // =================================================
-
-        backButton.setOnClickListener(v -> finish());
-
-    }
-
-
-    // =====================================================
-    // 9. BUILD INDIVIDUAL RESULT ROW
-    // =====================================================
-    // This method creates one comparison row dynamically.
-    // It displays rank, library name, speed and execution time.
-
-    private View buildRow(
-            int rank,
-            ResultItem item,
-            double bestTime
-    ) {
-
-        boolean isBest = rank == 1;
-
-
-        // Main row layout
-        LinearLayout row = new LinearLayout(this);
-
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundResource(R.drawable.bg_file_item);
-
-        row.setPadding(
-                dp(12),
-                dp(12),
-                dp(12),
-                dp(12)
+        heading.setText(
+                "LIBRARY COMPARISON\n\n" +
+                        "Fastest Upload: " + fastest.name +
+                        (lowestEnergyName != null
+                                ? "\nLowest Energy: " + lowestEnergyName
+                                : "\nEnergy measurements not available")
         );
 
+        heading.setTextSize(14);
+        heading.setTypeface(null, Typeface.BOLD);
+        heading.setTextColor(Color.rgb(31, 42, 68));
+        heading.setPadding(4, 8, 4, 16);
 
-        LinearLayout.LayoutParams rowLp =
+        container.addView(heading);
+
+        for (int i = 0; i < results.size(); i++) {
+
+            container.addView(
+                    buildRow(
+                            i + 1,
+                            results.get(i),
+                            fastest.timeMs,
+                            lowestEnergyName
+                    )
+            );
+        }
+    }
+
+    // Create a comparison card.
+    private LinearLayout buildRow(
+            int rank,
+            ResultItem item,
+            double fastestTime,
+            String lowestEnergyName) {
+
+        LinearLayout card = new LinearLayout(this);
+
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(14), dp(14), dp(14));
+
+        GradientDrawable background =
+                new GradientDrawable();
+
+        background.setColor(Color.WHITE);
+        background.setCornerRadius(dp(14));
+        background.setStroke(
+                dp(1),
+                Color.rgb(229, 234, 242)
+        );
+
+        card.setBackground(background);
+
+        LinearLayout.LayoutParams cardParams =
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
 
-        rowLp.bottomMargin = dp(10);
-        row.setLayoutParams(rowLp);
+        cardParams.bottomMargin = dp(12);
 
+        card.setLayoutParams(cardParams);
 
-        // Rank badge
-        TextView rankLabel = new TextView(this);
-
-        rankLabel.setLayoutParams(
-                new LinearLayout.LayoutParams(dp(44), dp(44))
-        );
-
-        rankLabel.setBackgroundResource(R.drawable.bg_file_icon);
-        rankLabel.setGravity(Gravity.CENTER);
-        rankLabel.setTextSize(14);
-        rankLabel.setTypeface(null, Typeface.BOLD);
-        rankLabel.setText("#" + rank);
-
-        rankLabel.setTextColor(
-                Color.parseColor(
-                        isBest ? "#16A34A" : "#3D7BF7"
-                )
-        );
-
-        row.addView(rankLabel);
-
-
-        // Middle column
-        LinearLayout middle = new LinearLayout(this);
-
-        middle.setOrientation(LinearLayout.VERTICAL);
-
-        LinearLayout.LayoutParams midLp =
-                new LinearLayout.LayoutParams(
-                        0,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        1f
-                );
-
-        midLp.setMarginStart(dp(12));
-        middle.setLayoutParams(midLp);
-
-
-        // Library name
         TextView name = new TextView(this);
 
-        name.setText(item.name);
-        name.setTextColor(Color.parseColor("#1F2A44"));
-        name.setTextSize(14);
+        name.setText("#" + rank + "   " + item.name);
+        name.setTextSize(16);
         name.setTypeface(null, Typeface.BOLD);
-        name.setSingleLine(true);
+        name.setTextColor(Color.rgb(31, 42, 68));
 
-        middle.addView(name);
+        card.addView(name);
 
-
-        // Speed information
-        TextView info = new TextView(this);
-
-        if (item.speedMBps >= 0) {
-
-            info.setText(
-                    String.format(
-                            Locale.US,
-                            "%.1f MB/s",
-                            item.speedMBps
-                    )
-            );
-
-        } else {
-
-            info.setText("Speed not provided by backend");
+        if (rank == 1) {
+            addText(card, "FASTEST UPLOAD", true);
         }
 
-        info.setTextColor(Color.parseColor("#8A94A8"));
-        info.setTextSize(11);
+        if (lowestEnergyName != null &&
+                lowestEnergyName.equals(item.name)) {
+            addText(card, "LOWEST ENERGY CONSUMPTION", true);
+        }
 
-        middle.addView(info);
-
-
-        // Performance progress bar
         ProgressBar bar = new ProgressBar(
                 this,
                 null,
                 android.R.attr.progressBarStyleHorizontal
         );
 
-        LinearLayout.LayoutParams barLp =
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(6)
-                );
-
-        barLp.topMargin = dp(6);
-
-        bar.setLayoutParams(barLp);
         bar.setMax(100);
 
-
-        // Fastest library gets a full progress bar.
-        int progress = 0;
-
-        if (item.timeMs > 0 && bestTime > 0) {
-
-            progress = (int) Math.round(
-                    bestTime / item.timeMs * 100
-            );
-        }
+        int progress = (int) Math.round(
+                fastestTime / item.timeMs * 100
+        );
 
         bar.setProgress(
                 Math.max(0, Math.min(100, progress))
         );
 
-
-        bar.setProgressTintList(
-                ColorStateList.valueOf(
-                        Color.parseColor("#3D7BF7")
-                )
-        );
-
-        bar.setProgressBackgroundTintList(
-                ColorStateList.valueOf(
-                        Color.parseColor("#E6ECFA")
-                )
-        );
-
-        middle.addView(bar);
-
-        row.addView(middle);
-
-
-        // Execution time
-        TextView time = new TextView(this);
-
-        LinearLayout.LayoutParams timeLp =
+        LinearLayout.LayoutParams barParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(7)
+                );
+
+        barParams.topMargin = dp(12);
+
+        bar.setLayoutParams(barParams);
+
+        card.addView(bar);
+
+        addMetric(card, "Upload Time", formatMs(item.timeMs));
+        addMetric(card, "Throughput", formatSpeed(item.speedMBps));
+        addMetric(card, "Response Time", formatMs(item.responseTimeMs));
+        addMetric(card, "Success Rate", formatPercent(item.successRate));
+        addMetric(card, "Energy Consumption", formatEnergy(item.energyJ));
+
+        return card;
+    }
+
+    private void addText(
+            LinearLayout parent,
+            String value,
+            boolean bold) {
+
+        TextView text = new TextView(this);
+
+        text.setText(value);
+        text.setTextColor(Color.rgb(21, 128, 61));
+        text.setTextSize(11);
+
+        if (bold) {
+            text.setTypeface(null, Typeface.BOLD);
+        }
+
+        text.setPadding(0, dp(6), 0, dp(3));
+
+        parent.addView(text);
+    }
+
+    private void addMetric(
+            LinearLayout parent,
+            String label,
+            String value) {
+
+        LinearLayout row = new LinearLayout(this);
+
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
 
-        timeLp.setMarginStart(dp(10));
-        time.setLayoutParams(timeLp);
+        params.topMargin = dp(8);
 
-        time.setText(
-                String.format(
-                        Locale.US,
-                        "%.0f ms",
-                        item.timeMs
+        row.setLayoutParams(params);
+
+        TextView left = new TextView(this);
+
+        left.setText(label);
+        left.setTextColor(Color.rgb(100, 116, 139));
+        left.setTextSize(12);
+
+        left.setLayoutParams(
+                new LinearLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1
                 )
         );
 
-        time.setTextSize(13);
-        time.setTypeface(null, Typeface.BOLD);
+        TextView right = new TextView(this);
 
-        time.setTextColor(
-                Color.parseColor(
-                        isBest ? "#16A34A" : "#1F2A44"
-                )
-        );
+        right.setText(value);
+        right.setTextColor(Color.rgb(31, 42, 68));
+        right.setTextSize(12);
+        right.setTypeface(null, Typeface.BOLD);
 
-        row.addView(time);
+        row.addView(left);
+        row.addView(right);
 
-        return row;
+        parent.addView(row);
     }
 
-
-    // =====================================================
-    // 10. SHOW MESSAGE WHEN RESULTS ARE NOT AVAILABLE
-    // =====================================================
-
-    private void showEmptyMessage(
-            LinearLayout container,
-            String message
-    ) {
+    private void showMessage(String message) {
 
         container.removeAllViews();
 
-        TextView emptyMessage = new TextView(this);
+        TextView text = new TextView(this);
 
-        emptyMessage.setText(message);
-        emptyMessage.setTextSize(14);
-        emptyMessage.setTextColor(
-                Color.parseColor("#64748B")
-        );
+        text.setText(message);
+        text.setTextSize(14);
+        text.setTextColor(Color.rgb(100, 116, 139));
+        text.setGravity(Gravity.CENTER);
+        text.setPadding(dp(12), dp(24), dp(12), dp(24));
 
-        emptyMessage.setGravity(Gravity.CENTER);
-
-        emptyMessage.setPadding(
-                dp(12),
-                dp(24),
-                dp(12),
-                dp(24)
-        );
-
-        container.addView(emptyMessage);
+        container.addView(text);
     }
 
+    private String formatMs(double value) {
+        return value >= 0
+                ? String.format(Locale.US, "%.1f ms", value)
+                : "--";
+    }
 
-    // =====================================================
-    // 11. DP CONVERSION
-    // =====================================================
-    // Converts dp values into pixels for Android layouts.
+    private String formatSpeed(double value) {
+        return value >= 0
+                ? String.format(Locale.US, "%.2f MB/s", value)
+                : "--";
+    }
+
+    private String formatEnergy(double value) {
+        return value >= 0
+                ? String.format(Locale.US, "%.3f J", value)
+                : "--";
+    }
+
+    private String formatPercent(double value) {
+        return value >= 0
+                ? String.format(Locale.US, "%.1f%%", value)
+                : "--";
+    }
 
     private int dp(int value) {
-
         return (int) (
                 value * getResources()
                         .getDisplayMetrics().density
         );
     }
-
 }

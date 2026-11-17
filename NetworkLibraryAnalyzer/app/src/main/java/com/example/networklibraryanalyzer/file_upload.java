@@ -23,6 +23,8 @@ import com.example.networklibraryanalyzer.databinding.ActivityFileUploadBinding;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +32,9 @@ import java.util.concurrent.Executors;
 // Upload libraries (used by the UploadClient class at the bottom)
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
 import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.NetworkResponse;
 import com.android.volley.Request;
@@ -58,6 +63,20 @@ import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
 
+// Ktor (Kotlin library, called from Java)
+import io.ktor.client.HttpClient;
+import io.ktor.client.HttpClientJvmKt;
+import io.ktor.client.request.forms.FormBuildersKt;
+import io.ktor.client.request.forms.FormDslKt;
+import io.ktor.client.request.forms.FormPart;
+import io.ktor.client.statement.HttpResponse;
+import io.ktor.http.HeadersBuilder;
+import io.ktor.http.HttpHeaders;
+import io.ktor.http.content.PartData;
+import kotlin.Unit;
+import kotlin.coroutines.EmptyCoroutineContext;
+import kotlinx.coroutines.BuildersKt;
+
 public class file_upload extends AppCompatActivity {
 
     // =====================================================
@@ -67,10 +86,13 @@ public class file_upload extends AppCompatActivity {
     private ActivityFileUploadBinding binding;
 
     // Backend server URL.
-    private static final String BASE_URL = "http://192.168.1.11:8080";
+    private static final String BASE_URL = "http://3.107.213.99:8080";
 
-    // Stores the selected file URI.
-    private Uri selectedUri;
+    // Stores ALL selected file URIs (the user can add more files later).
+    private final List<Uri> selectedUris = new ArrayList<>();
+
+    // Maximum number of files that can be selected (files are read into memory).
+    private static final int MAX_FILES = 10;
 
     // File picker launcher.
     private ActivityResultLauncher<String> filePicker;
@@ -80,6 +102,392 @@ public class file_upload extends AppCompatActivity {
 
     // How many times each library uploads the file (results are averaged).
     private static final int UPLOAD_RUNS = 3;
+
+
+    // =====================================================
+    // 1B. RESULT OF ONE LIBRARY + BEST LIBRARY COMPARISON
+    // =====================================================
+
+    // =====================================================
+    // ENERGY METER
+    // Estimates the battery energy used while a test runs.
+    // It reads the battery current about every 100 ms and adds up
+    // current x voltage x time. The idle power measured before the test
+    // is subtracted, so only the extra energy of the test is left.
+    // The phone must NOT be charging. The result is an ESTIMATE.
+    // =====================================================
+
+    static class EnergyMeter {
+
+        static class Result {
+            final boolean valid;     // false when the energy could not be measured
+            final String reason;     // why it could not be measured
+            final double mWh;        // net energy in milliwatt-hours
+
+            Result(boolean valid, String reason, double mWh) {
+                this.valid = valid;
+                this.reason = reason;
+                this.mWh = mWh;
+            }
+        }
+
+        private final Context context;
+        private final BatteryManager batteryManager;
+
+        private volatile boolean running = false;
+        private Thread thread;
+        private double totalMwh = 0;
+        private long samples = 0;
+        private long startNanos = 0;
+        private double baselineMw = 0;      // idle power in mW
+
+        EnergyMeter(Context context) {
+            this.context = context.getApplicationContext();
+            this.batteryManager = (BatteryManager)
+                    this.context.getSystemService(Context.BATTERY_SERVICE);
+        }
+
+        private Intent batteryIntent() {
+            return context.registerReceiver(null,
+                    new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        }
+
+        // True when a charger or USB cable is connected (values would be wrong).
+        boolean isCharging() {
+            Intent intent = batteryIntent();
+            return intent != null && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+        }
+
+        // Power used right now in mW (0 if the phone does not report it).
+        private double powerMw() {
+
+            if (batteryManager == null) {
+                return 0;
+            }
+
+            long raw = batteryManager.getLongProperty(
+                    BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+
+            if (raw == Long.MIN_VALUE || raw == 0) {
+                return 0;
+            }
+
+            // The sign depends on the phone, so use the absolute value.
+            double microAmps = Math.abs((double) raw);
+
+            // Some phones report milliamps instead of microamps.
+            if (microAmps < 10000) {
+                microAmps *= 1000;
+            }
+
+            Intent intent = batteryIntent();
+            double volts = intent != null
+                    ? intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) / 1000.0
+                    : 0;
+
+            if (volts <= 0) {
+                return 0;
+            }
+
+            return (microAmps / 1000.0) * volts;      // mA x V = mW
+        }
+
+        // Measures the idle power for about 2 seconds. Call it before the test.
+        void measureBaseline() throws InterruptedException {
+
+            double sum = 0;
+            int count = 0;
+
+            for (int i = 0; i < 20; i++) {
+
+                double p = powerMw();
+
+                if (p > 0) {
+                    sum += p;
+                    count++;
+                }
+
+                Thread.sleep(100);
+            }
+
+            baselineMw = count > 0 ? sum / count : 0;
+        }
+
+        void start() {
+
+            totalMwh = 0;
+            samples = 0;
+            running = true;
+            startNanos = System.nanoTime();
+
+            thread = new Thread(() -> {
+
+                long last = System.nanoTime();
+
+                while (running) {
+
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    long now = System.nanoTime();
+                    double p = powerMw();
+
+                    if (p > 0) {
+                        // mW x hours  (1 hour = 3.6e12 nanoseconds)
+                        totalMwh += p * ((now - last) / 3.6e12);
+                        samples++;
+                    }
+
+                    last = now;
+                }
+            });
+
+            thread.start();
+        }
+
+        Result stop() {
+
+            running = false;
+
+            try {
+                if (thread != null) {
+                    thread.join();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            if (samples == 0) {
+                return new Result(false, "Not supported on this phone", 0);
+            }
+
+            double hours = (System.nanoTime() - startNanos) / 3.6e12;
+
+            // Remove the energy the phone would have used anyway (screen, idle).
+            double net = totalMwh - baselineMw * hours;
+
+            return new Result(true, "", Math.max(net, 0));
+        }
+    }
+
+
+    // Result of one library after all runs.
+    private static class LibraryStats {
+
+        final String name;
+        final long avgMs;           // average upload time of all files (ms)
+        final double throughput;    // MB/s
+        final long bestMs;          // fastest single run (response time, ms)
+        final int successCount;
+        final int successPercent;   // 0 - 100
+        int score;                  // sum of ranks, lower is better
+        double energyMwh = -1;      // energy per run in mWh (-1 = not measured)
+
+        LibraryStats(String name, long avgMs, double throughput, long bestMs,
+                     int successCount, int successPercent) {
+            this.name = name;
+            this.avgMs = avgMs;
+            this.throughput = throughput;
+            this.bestMs = bestMs;
+            this.successCount = successCount;
+            this.successPercent = successPercent;
+        }
+
+        boolean ok() {
+            return successCount > 0;
+        }
+    }
+
+
+    // Texts shown in the "Best Library" card.
+    private static class BestResult {
+        boolean any = false;
+        String overall = "";
+        String uploadTime = "";
+        String throughput = "";
+        String responseTime = "";
+        String successRate = "";
+        String energy = "";
+        String comparison = "";
+    }
+
+
+    // Adds the rank (1 = best) of every library for one result to "score".
+    // Libraries with the same value get the same rank.
+    private static void addRanks(List<LibraryStats> list, Comparator<LibraryStats> cmp) {
+
+        List<LibraryStats> sorted = new ArrayList<>(list);
+        Collections.sort(sorted, cmp);
+
+        int rank = 1;
+
+        for (int i = 0; i < sorted.size(); i++) {
+
+            if (i > 0 && cmp.compare(sorted.get(i - 1), sorted.get(i)) != 0) {
+                rank = i + 1;
+            }
+
+            sorted.get(i).score += rank;
+        }
+    }
+
+
+    // Best library for one result (if equal, the one with the lower upload time).
+    private static LibraryStats pickBest(List<LibraryStats> list, Comparator<LibraryStats> cmp) {
+
+        LibraryStats best = list.get(0);
+
+        for (LibraryStats s : list) {
+
+            int c = cmp.compare(s, best);
+
+            if (c < 0 || (c == 0 && s.avgMs < best.avgMs)) {
+                best = s;
+            }
+        }
+
+        return best;
+    }
+
+
+    // Compares all libraries: upload time, throughput, response time, success rate.
+    private static BestResult compareLibraries(List<LibraryStats> all) {
+
+        BestResult result = new BestResult();
+
+        // Only libraries that uploaded at least once can be "best".
+        List<LibraryStats> ok = new ArrayList<>();
+
+        for (LibraryStats s : all) {
+            if (s.ok()) {
+                ok.add(s);
+            }
+        }
+
+        if (ok.isEmpty()) {
+            return result;
+        }
+
+        result.any = true;
+
+        Comparator<LibraryStats> byTime = (a, b) -> Long.compare(a.avgMs, b.avgMs);
+        Comparator<LibraryStats> byThroughput = (a, b) -> Double.compare(b.throughput, a.throughput);
+        Comparator<LibraryStats> byResponse = (a, b) -> Long.compare(a.bestMs, b.bestMs);
+        Comparator<LibraryStats> bySuccess = (a, b) -> Integer.compare(b.successPercent, a.successPercent);
+        Comparator<LibraryStats> byEnergy = (a, b) -> Double.compare(a.energyMwh, b.energyMwh);
+
+        // Energy is compared only when it was measured for every successful library.
+        boolean useEnergy = true;
+
+        for (LibraryStats s : ok) {
+            if (s.energyMwh < 0) {
+                useEnergy = false;
+            }
+        }
+
+        // Best library for each result.
+        LibraryStats bestTime = pickBest(ok, byTime);
+        LibraryStats bestThroughput = pickBest(ok, byThroughput);
+        LibraryStats bestResponse = pickBest(ok, byResponse);
+        LibraryStats bestSuccess = pickBest(ok, bySuccess);
+        LibraryStats bestEnergy = useEnergy ? pickBest(ok, byEnergy) : null;
+
+        // Best overall: the lowest sum of ranks over the 4 results.
+        for (LibraryStats s : ok) {
+            s.score = 0;
+        }
+
+        addRanks(ok, byTime);
+        addRanks(ok, byThroughput);
+        addRanks(ok, byResponse);
+        addRanks(ok, bySuccess);
+
+        if (useEnergy) {
+            addRanks(ok, byEnergy);
+        }
+
+        List<LibraryStats> ranked = new ArrayList<>(ok);
+
+        Collections.sort(ranked, (a, b) -> {
+
+            int c = Integer.compare(a.score, b.score);
+
+            if (c != 0) {
+                return c;
+            }
+
+            c = Integer.compare(b.successPercent, a.successPercent);
+
+            if (c != 0) {
+                return c;
+            }
+
+            return Long.compare(a.avgMs, b.avgMs);
+        });
+
+        LibraryStats overall = ranked.get(0);
+
+        String dot = "  \u2022  ";
+
+        result.overall = "\uD83C\uDFC6 " + overall.name;
+
+        result.uploadTime = bestTime.name + dot + bestTime.avgMs + " ms";
+
+        result.throughput = bestThroughput.name + dot
+                + String.format(Locale.US, "%.2f MB/s", bestThroughput.throughput);
+
+        result.responseTime = bestResponse.name + dot + bestResponse.bestMs + " ms";
+
+        result.successRate = bestSuccess.name + dot + bestSuccess.successPercent + "%";
+
+        result.energy = useEnergy
+                ? bestEnergy.name + dot
+                + String.format(Locale.US, "%.3f mWh per run", bestEnergy.energyMwh)
+                : "Not measured (unplug the charger)";
+
+        // Comparison of all libraries (best first, failed ones at the end).
+        String star = "  \u2605";
+
+        StringBuilder text = new StringBuilder();
+        int place = 1;
+
+        for (LibraryStats s : ranked) {
+
+            text.append(place++).append(". ").append(s.name).append("\n")
+                    .append("Upload time: ").append(s.avgMs).append(" ms")
+                    .append(s == bestTime ? star : "").append("\n")
+                    .append("Throughput: ")
+                    .append(String.format(Locale.US, "%.2f MB/s", s.throughput))
+                    .append(s == bestThroughput ? star : "").append("\n")
+                    .append("Response time: ").append(s.bestMs).append(" ms")
+                    .append(s == bestResponse ? star : "").append("\n")
+                    .append("Energy used: ")
+                    .append(s.energyMwh >= 0
+                            ? String.format(Locale.US, "%.3f mWh per run", s.energyMwh)
+                            : "not measured")
+                    .append(s == bestEnergy ? star : "").append("\n")
+                    .append("Success rate: ").append(s.successPercent).append("% (")
+                    .append(s.successCount).append("/").append(UPLOAD_RUNS).append(")")
+                    .append(s == bestSuccess ? star : "").append("\n\n");
+        }
+
+        for (LibraryStats s : all) {
+
+            if (!s.ok()) {
+                text.append("-. ").append(s.name).append("\n")
+                        .append("Failed (success rate 0%)\n\n");
+            }
+        }
+
+        text.append("\u2605 = best in that result");
+
+        result.comparison = text.toString();
+
+        return result;
+    }
 
 
     // =====================================================
@@ -98,43 +506,60 @@ public class file_upload extends AppCompatActivity {
         setContentView(binding.getRoot());
 
 
-        // Register Android file picker.
+        // Register Android file picker (multiple files).
         filePicker = registerForActivityResult(
-                new ActivityResultContracts.GetContent(),
-                uri -> {
+                new ActivityResultContracts.GetMultipleContents(),
+                uris -> {
 
-                    if (uri != null) {
-
-                        // Store selected file.
-                        selectedUri = uri;
-
-                        // Show selected file card.
-                        binding.fileCard.setVisibility(View.VISIBLE);
-
-                        // Display selected file name.
-                        binding.fileName.setText(
-                                getFileName(uri)
-                        );
-
-                        // Update status.
-                        binding.status.setText(
-                                "File selected successfully!"
-                        );
-
-                        binding.infoUploadStatus.setText(
-                                "File ready for analysis"
-                        );
-
-                        // Hide previous success message.
-                        binding.successCard.setVisibility(View.GONE);
-
-                        // Update information and performance.
-                        updateUploadingInformation();
-                        resetUploadingPerformance();
-
-                        // Update button.
-                        updateStartButton();
+                    if (uris == null || uris.isEmpty()) {
+                        return;
                     }
+
+                    // Only 1 to MAX_FILES files can be selected at one time.
+                    if (uris.size() > MAX_FILES) {
+
+                        Toast.makeText(
+                                this,
+                                "Select only 1 to " + MAX_FILES + " files at one time. "
+                                        + "You selected " + uris.size() + ".",
+                                Toast.LENGTH_LONG
+                        ).show();
+
+                        return;
+                    }
+
+                    int added = 0;
+                    boolean limitReached = false;
+
+                    for (Uri uri : uris) {
+
+                        // Skip files that are already in the list.
+                        if (selectedUris.contains(uri)) {
+                            continue;
+                        }
+
+                        if (selectedUris.size() >= MAX_FILES) {
+                            limitReached = true;
+                            break;
+                        }
+
+                        selectedUris.add(uri);
+                        added++;
+                    }
+
+                    if (limitReached) {
+                        Toast.makeText(
+                                this,
+                                "Maximum " + MAX_FILES + " files allowed",
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    }
+
+                    refreshSelectedFiles();
+
+                    binding.status.setText(
+                            added + " file(s) added"
+                    );
                 }
         );
 
@@ -144,7 +569,7 @@ public class file_upload extends AppCompatActivity {
         binding.successCard.setVisibility(View.GONE);
 
         // Initialize performance information.
-        resetUploadingPerformance();
+        //resetUploadingPerformance();
 
         // Initialize upload information.
         updateUploadingInformation();
@@ -160,6 +585,15 @@ public class file_upload extends AppCompatActivity {
         binding.pickCard.setOnClickListener(v -> {
 
             filePicker.launch("*/*");
+
+        });
+
+
+        // Remove all selected files.
+        binding.clearFilesButton.setOnClickListener(v -> {
+
+            selectedUris.clear();
+            refreshSelectedFiles();
 
         });
 
@@ -191,7 +625,8 @@ public class file_upload extends AppCompatActivity {
                 binding.httpURLConnectionCheck,
                 binding.okHttpCheck,
                 binding.retrofitCheck,
-                binding.volleyCheck
+                binding.volleyCheck,
+                binding.ktorCheck
 
         };
 
@@ -233,20 +668,94 @@ public class file_upload extends AppCompatActivity {
 
     private void updateStartButton() {
 
-        // Check file selection.
-        boolean fileSelected = selectedUri != null;
+        // Check file selection (at least one file).
+        boolean fileSelected = !selectedUris.isEmpty();
 
         // Check library selection.
         boolean librarySelected =
                 binding.httpURLConnectionCheck.isChecked()
                         || binding.okHttpCheck.isChecked()
                         || binding.retrofitCheck.isChecked()
-                        || binding.volleyCheck.isChecked();
+                        || binding.volleyCheck.isChecked()
+                        || binding.ktorCheck.isChecked();
 
         // Enable button only if both conditions are true.
         binding.uploadButton.setEnabled(
                 fileSelected && librarySelected
         );
+
+    }
+
+
+    // =====================================================
+    // 7B. REFRESH THE SELECTED FILES (count, names, size)
+    // =====================================================
+
+    private void refreshSelectedFiles() {
+
+        int count = selectedUris.size();
+        long totalSize = getTotalSize();
+
+        String sizeText = android.text.format.Formatter.formatFileSize(this, totalSize);
+
+        // "3 files - 12 MB" badge next to the heading.
+        binding.fileCountBadge.setText(
+                count + (count == 1 ? " file" : " files")
+                        + (count > 0 ? "  \u2022  " + sizeText : "")
+        );
+
+        if (count == 0) {
+
+            binding.fileCard.setVisibility(View.GONE);
+
+        } else {
+
+            binding.fileCard.setVisibility(View.VISIBLE);
+
+            binding.fileName.setText(
+                    count + (count == 1 ? " file selected" : " files selected")
+            );
+
+            // Numbered list of file names.
+            StringBuilder names = new StringBuilder();
+
+            for (int i = 0; i < count; i++) {
+                names.append(i + 1)
+                        .append(". ")
+                        .append(getFileName(selectedUris.get(i)))
+                        .append("\n");
+            }
+
+            binding.fileList.setText(names.toString().trim());
+
+            binding.status.setText("Ready to upload");
+        }
+
+        // Hide previous success message.
+        binding.successCard.setVisibility(View.GONE);
+
+        updateUploadingInformation();
+       // resetUploadingPerformance();
+        updateStartButton();
+
+    }
+
+
+    // Sum of the sizes of all selected files (files with unknown size are skipped).
+    private long getTotalSize() {
+
+        long total = 0;
+
+        for (Uri uri : selectedUris) {
+
+            long size = getFileSize(uri);
+
+            if (size > 0) {
+                total += size;
+            }
+        }
+
+        return total;
 
     }
 
@@ -283,6 +792,12 @@ public class file_upload extends AppCompatActivity {
 
         }
 
+        if (binding.ktorCheck.isChecked()) {
+
+            selectedLibraries.add("Ktor");
+
+        }
+
         return selectedLibraries;
 
     }
@@ -294,105 +809,67 @@ public class file_upload extends AppCompatActivity {
 
     private void updateUploadingInformation() {
 
-        // If no file is selected.
-        if (selectedUri == null) {
+        List<String> libraries = getSelectedLibraries();
 
+        // Selected libraries.
+        binding.infoLibraries.setText(
+                libraries.isEmpty()
+                        ? "No library selected"
+                        : android.text.TextUtils.join(", ", libraries)
+        );
+
+        // If no file is selected.
+        if (selectedUris.isEmpty()) {
+
+            binding.infoFileCount.setText("0");
             binding.infoFileName.setText("No file selected");
             binding.infoFileSize.setText("--");
             binding.infoFileType.setText("--");
-
-            binding.infoLibraries.setText(
-                    getSelectedLibraries().isEmpty()
-                            ? "No library selected"
-                            : android.text.TextUtils.join(
-                            ", ",
-                            getSelectedLibraries()
-                    )
-            );
-
-            binding.infoUploadStatus.setText(
-                    "Waiting for file"
-            );
+            binding.infoUploadStatus.setText("Waiting for file");
 
             return;
         }
 
 
-        // Get file name.
-        String fileName = getFileName(selectedUri);
+        List<String> names = new ArrayList<>();
+        java.util.Set<String> types = new java.util.LinkedHashSet<>();
 
-        // Get file size.
-        long fileSize = getFileSize(selectedUri);
+        for (Uri uri : selectedUris) {
 
-        // Get file type.
-        String fileType = getContentResolver().getType(
-                selectedUri
-        );
+            names.add(getFileName(uri));
 
-
-        // Display file name.
-        binding.infoFileName.setText(fileName);
-
-        // Display file size.
-        if (fileSize >= 0) {
-
-            binding.infoFileSize.setText(
-                    android.text.format.Formatter.formatFileSize(
-                            this,
-                            fileSize
-                    )
-            );
-
-        } else {
-
-            binding.infoFileSize.setText(
-                    "Size unavailable"
-            );
-
+            String type = getContentResolver().getType(uri);
+            types.add(type != null ? type : "Unknown");
         }
 
+        // Number of files.
+        binding.infoFileCount.setText(String.valueOf(selectedUris.size()));
 
-        // Display file type.
+        // File names.
+        binding.infoFileName.setText(
+                android.text.TextUtils.join(", ", names)
+        );
+
+        // Total size.
+        long totalSize = getTotalSize();
+
+        binding.infoFileSize.setText(
+                totalSize > 0
+                        ? android.text.format.Formatter.formatFileSize(this, totalSize)
+                        : "Size unavailable"
+        );
+
+        // File types.
         binding.infoFileType.setText(
-                fileType != null ? fileType : "Unknown"
+                android.text.TextUtils.join(", ", types)
         );
 
-
-        // Display selected libraries.
-        List<String> libraries = getSelectedLibraries();
-
-        if (libraries.isEmpty()) {
-
-            binding.infoLibraries.setText(
-                    "No library selected"
-            );
-
-        } else {
-
-            binding.infoLibraries.setText(
-                    android.text.TextUtils.join(
-                            ", ",
-                            libraries
-                    )
-            );
-
-        }
-
-
-        // Update upload status.
-        if (libraries.isEmpty()) {
-
-            binding.infoUploadStatus.setText(
-                    "Select a network library"
-            );
-
-        } else {
-
-            binding.infoUploadStatus.setText(
-                    "Ready for analysis"
-            );
-
-        }
+        // Upload status.
+        binding.infoUploadStatus.setText(
+                libraries.isEmpty()
+                        ? "Select a network library"
+                        : "Ready for analysis"
+        );
 
     }
 
@@ -442,39 +919,21 @@ public class file_upload extends AppCompatActivity {
     // 11. RESET UPLOADING PERFORMANCE
     // =====================================================
 
-    private void resetUploadingPerformance() {
 
-        binding.performanceUploadTime.setText(
-                "Not tested"
-        );
-
-        binding.performanceThroughput.setText(
-                "Not tested"
-        );
-
-        binding.performanceResponseTime.setText(
-                "Not tested"
-        );
-
-        binding.performanceSuccessRate.setText(
-                "Not tested"
-        );
-
-    }
 
 
     // =====================================================
-    // 12. START NETWORK ANALYSIS (REAL UPLOAD)
+    // 12. START NETWORK ANALYSIS (REAL UPLOAD OF ALL FILES)
     // =====================================================
 
     private void startNetworkAnalysis() {
 
-        // Validate file.
-        if (selectedUri == null) {
+        // Validate files.
+        if (selectedUris.isEmpty()) {
 
             Toast.makeText(
                     this,
-                    "Please select a file first!",
+                    "Please select at least one file first!",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -504,15 +963,23 @@ public class file_upload extends AppCompatActivity {
         binding.successCard.setVisibility(View.GONE);
 
         binding.status.setText("Uploading...");
-        binding.infoUploadStatus.setText("Uploading to " + BASE_URL);
+        binding.infoUploadStatus.setText(
+                "Uploading " + selectedUris.size() + " file(s) to " + BASE_URL
+        );
 
 
-        // File information.
-        final Uri uri = selectedUri;
-        final String fileName = getFileName(uri);
+        // Copy of the selected files (the list may change while uploading).
+        final List<Uri> uris = new ArrayList<>(selectedUris);
+        final List<String> fileNames = new ArrayList<>();
+        final List<String> mimeTypes = new ArrayList<>();
 
-        String type = getContentResolver().getType(uri);
-        final String mimeType = type != null ? type : "application/octet-stream";
+        for (Uri uri : uris) {
+
+            fileNames.add(getFileName(uri));
+
+            String type = getContentResolver().getType(uri);
+            mimeTypes.add(type != null ? type : "application/octet-stream");
+        }
 
 
         // Upload in the background.
@@ -520,8 +987,20 @@ public class file_upload extends AppCompatActivity {
 
             try {
 
-                // Read the file once. All libraries send the same bytes.
-                byte[] data = UploadClient.readBytes(getContentResolver(), uri);
+                // Read every file once. All libraries send the same bytes.
+                List<byte[]> allData = new ArrayList<>();
+                long totalBytes = 0;
+
+                for (Uri uri : uris) {
+
+                    byte[] bytes = UploadClient.readBytes(getContentResolver(), uri);
+
+                    allData.add(bytes);
+                    totalBytes += bytes.length;
+                }
+
+                final int fileCount = allData.size();
+                final long totalSizeBytes = totalBytes;
 
                 UploadClient client = new UploadClient(getApplicationContext(), BASE_URL);
 
@@ -533,37 +1012,92 @@ public class file_upload extends AppCompatActivity {
                 boolean anySuccess = false;
                 String lastError = "";
 
+                // Result of every library (used for the "Best Library" card).
+                List<LibraryStats> allStats = new ArrayList<>();
+
+                // Energy meter (estimates the battery energy used by each library).
+                EnergyMeter meter = new EnergyMeter(getApplicationContext());
+                StringBuilder energyText = new StringBuilder();
+                boolean canMeasure = !meter.isCharging();
+
+                if (canMeasure) {
+                    try {
+                        meter.measureBaseline();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        canMeasure = false;
+                    }
+                }
+
                 for (String library : selectedLibraries) {
 
                     long totalMs = 0;
                     long bestMs = Long.MAX_VALUE;
                     int successCount = 0;
 
+                    if (canMeasure) {
+                        meter.start();
+                    }
+
+                    // One run = upload ALL files one after another.
                     for (int i = 0; i < UPLOAD_RUNS; i++) {
 
-                        UploadClient.Result result =
-                                client.upload(library, data, fileName, mimeType);
+                        long runMs = 0;
+                        boolean runOk = true;
 
-                        if (result.success) {
+                        for (int f = 0; f < fileCount; f++) {
+
+                            UploadClient.Result result = client.upload(
+                                    library,
+                                    allData.get(f),
+                                    fileNames.get(f),
+                                    mimeTypes.get(f)
+                            );
+
+                            if (result.success) {
+
+                                runMs += result.timeMs;
+
+                            } else {
+
+                                runOk = false;
+
+                                lastError = library + " (" + fileNames.get(f) + "): HTTP "
+                                        + result.code + " " + result.message;
+
+                                break;
+                            }
+                        }
+
+                        if (runOk) {
 
                             successCount++;
-                            totalMs += result.timeMs;
-                            bestMs = Math.min(bestMs, result.timeMs);
-
-                        } else {
-
-                            lastError = library + ": HTTP " + result.code
-                                    + " " + result.message;
+                            totalMs += runMs;
+                            bestMs = Math.min(bestMs, runMs);
                         }
                     }
+
+                    // Stop the energy meter for this library.
+                    EnergyMeter.Result energy = canMeasure ? meter.stop() : null;
+
+                    // Energy of ONE run (all files) and the size of one run.
+                    double perRunEnergy = (energy != null && energy.valid)
+                            ? energy.mWh / UPLOAD_RUNS
+                            : -1;
+                    double mbPerRun = totalSizeBytes / (1024.0 * 1024.0);
 
                     if (successCount > 0) {
 
                         anySuccess = true;
 
                         long avgMs = Math.max(totalMs / successCount, 1);
-                        double megabytes = data.length / (1024.0 * 1024.0);
+                        double megabytes = totalSizeBytes / (1024.0 * 1024.0);
                         double throughput = megabytes / (avgMs / 1000.0);
+
+                        LibraryStats stats = new LibraryStats(library, avgMs, throughput, bestMs,
+                                successCount, successCount * 100 / UPLOAD_RUNS);
+                        stats.energyMwh = perRunEnergy;
+                        allStats.add(stats);
 
                         timeText.append(library).append(": ")
                                 .append(avgMs).append(" ms\n");
@@ -577,15 +1111,42 @@ public class file_upload extends AppCompatActivity {
 
                     } else {
 
+                        allStats.add(new LibraryStats(library, 0, 0, 0, 0, 0));
+
                         timeText.append(library).append(": Failed\n");
                         throughputText.append(library).append(": Failed\n");
                         responseText.append(library).append(": Failed\n");
+                    }
+
+                    if (energy == null) {
+                        energyText.append(library).append(": Unplug the charger\n");
+                    } else if (!energy.valid) {
+                        energyText.append(library).append(": ").append(energy.reason).append("\n");
+                    } else if (successCount == 0) {
+                        energyText.append(library).append(": Failed\n");
+                    } else {
+                        energyText.append(library).append(": ")
+                                .append(String.format(Locale.US, "%.3f mWh per run", perRunEnergy))
+                                .append(mbPerRun > 0
+                                        ? String.format(Locale.US, " (%.3f mWh/MB)", perRunEnergy / mbPerRun)
+                                        : "")
+                                .append("\n");
                     }
 
                     rateText.append(library).append(": ")
                             .append(successCount * 100 / UPLOAD_RUNS).append("% (")
                             .append(successCount).append("/")
                             .append(UPLOAD_RUNS).append(")\n");
+
+                    // Short pause so the radio calms down before the next library.
+                    if (canMeasure) {
+                        try {
+                            Thread.sleep(1500);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
                 }
 
                 final boolean success = anySuccess;
@@ -595,11 +1156,15 @@ public class file_upload extends AppCompatActivity {
                 final String throughputResult = throughputText.toString().trim();
                 final String responseResult = responseText.toString().trim();
                 final String rateResult = rateText.toString().trim();
+                final String energyResult = energyText.toString().trim();
+
+                // Compare all libraries and find the best one.
+                final BestResult best = compareLibraries(allStats);
 
                 android.util.Log.d(
                         "NETWORK_ANALYSIS",
-                        "File: " + fileName
-                                + "\nSize: " + data.length + " bytes"
+                        "Files: " + fileCount + " " + fileNames
+                                + "\nTotal size: " + totalSizeBytes + " bytes"
                                 + "\nBackend URL: " + BASE_URL
                                 + "\nUpload time:\n" + timeResult
                                 + "\nSuccess rate:\n" + rateResult
@@ -613,10 +1178,25 @@ public class file_upload extends AppCompatActivity {
                         return;
                     }
 
-                    binding.performanceUploadTime.setText(timeResult);
-                    binding.performanceThroughput.setText(throughputResult);
-                    binding.performanceResponseTime.setText(responseResult);
-                    binding.performanceSuccessRate.setText(rateResult);
+
+
+                    // Best library card.
+                    if (best.any) {
+
+                        binding.bestOverall.setText(best.overall);
+                        binding.bestUploadTime.setText(best.uploadTime);
+                        binding.bestThroughput.setText(best.throughput);
+                        binding.bestResponseTime.setText(best.responseTime);
+                        binding.bestSuccessRate.setText(best.successRate);
+                        binding.bestEnergy.setText(best.energy);
+                        binding.comparisonText.setText(best.comparison);
+
+                        binding.bestLibrarySection.setVisibility(View.VISIBLE);
+
+                    } else {
+
+                        binding.bestLibrarySection.setVisibility(View.GONE);
+                    }
 
                     if (success) {
 
@@ -624,7 +1204,8 @@ public class file_upload extends AppCompatActivity {
                         binding.infoUploadStatus.setText("Uploaded to server");
 
                         binding.successMessage.setText(
-                                "File uploaded to " + BASE_URL
+                                fileCount + (fileCount == 1 ? " file" : " files")
+                                        + " uploaded to " + BASE_URL
                         );
 
                         binding.successCard.setVisibility(View.VISIBLE);
@@ -658,7 +1239,7 @@ public class file_upload extends AppCompatActivity {
                         return;
                     }
 
-                    binding.status.setText("Could not read the selected file");
+                    binding.status.setText("Could not read the selected files");
                     binding.infoUploadStatus.setText("Failed");
 
                     Toast.makeText(
@@ -739,7 +1320,7 @@ public class file_upload extends AppCompatActivity {
 
 
     // =====================================================
-    // 15. UPLOAD CLIENT (HttpURLConnection, OkHttp, Retrofit, Volley)
+    // 15. UPLOAD CLIENT (HttpURLConnection, OkHttp, Retrofit, Volley, Ktor)
     // =====================================================
 
     static class UploadClient {
@@ -853,7 +1434,7 @@ public class file_upload extends AppCompatActivity {
 
         // =====================================================
         // READ THE SELECTED FILE INTO MEMORY
-        // (all four libraries send the same bytes, so the test is fair)
+        // (all libraries send the same bytes, so the test is fair)
         // =====================================================
 
         public static byte[] readBytes(ContentResolver resolver, Uri uri) throws IOException {
@@ -897,6 +1478,9 @@ public class file_upload extends AppCompatActivity {
 
                     case "Volley":
                         return viaVolley(data, fileName, mimeType, library);
+
+                    case "Ktor":
+                        return viaKtor(data, fileName, mimeType, library);
 
                     default:
                         return new Result(false, 0, -1, "Unknown library: " + library);
@@ -1057,6 +1641,55 @@ public class file_upload extends AppCompatActivity {
                 return new Result(false, elapsedMs(start), -1,
                         e.getClass().getSimpleName() + ": " + e.getMessage());
             }
+        }
+
+
+        // -----------------------------------------------------
+        // Ktor (Kotlin library, called from Java with runBlocking)
+        // -----------------------------------------------------
+
+        // One shared client (creating a client per upload would leak threads).
+        private static HttpClient ktorClient;
+
+        private static synchronized HttpClient getKtorClient() {
+            if (ktorClient == null) {
+                // Uses whichever Ktor engine you added (CIO or OkHttp).
+                ktorClient = HttpClientJvmKt.HttpClient(config -> Unit.INSTANCE);
+            }
+            return ktorClient;
+        }
+
+        private Result viaKtor(byte[] data, String fileName,
+                               String mimeType, String library)
+                throws InterruptedException {
+
+            final String url = baseUrl + "/upload";
+            final HttpClient client = getKtorClient();
+
+            // Headers of the "file" part.
+            HeadersBuilder fileHeaders = new HeadersBuilder(8);
+            fileHeaders.append(HttpHeaders.INSTANCE.getContentType(), mimeType);
+            fileHeaders.append(HttpHeaders.INSTANCE.getContentDisposition(),
+                    "filename=\"" + fileName.replace("\"", "_") + "\"");
+
+            // Multipart body: fields "library" and "file".
+            final List<PartData> parts = FormDslKt.formData(
+                    new FormPart<String>("library", library,
+                            new HeadersBuilder(8).build()),
+                    new FormPart<byte[]>("file", data, fileHeaders.build())
+            );
+
+            long start = System.nanoTime();
+
+            // Ktor calls are "suspend" functions, so we run them with runBlocking.
+            // (We are already on a background thread, so blocking is fine.)
+            HttpResponse response = BuildersKt.<HttpResponse>runBlocking(
+                    EmptyCoroutineContext.INSTANCE,
+                    (scope, continuation) -> FormBuildersKt.submitFormWithBinaryData(
+                            client, url, parts, request -> Unit.INSTANCE, continuation)
+            );
+
+            return finish(start, response.getStatus().getValue(), "");
         }
 
 
