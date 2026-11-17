@@ -569,7 +569,7 @@ public class file_upload extends AppCompatActivity {
         binding.successCard.setVisibility(View.GONE);
 
         // Initialize performance information.
-        resetUploadingPerformance();
+        //resetUploadingPerformance();
 
         // Initialize upload information.
         updateUploadingInformation();
@@ -735,7 +735,7 @@ public class file_upload extends AppCompatActivity {
         binding.successCard.setVisibility(View.GONE);
 
         updateUploadingInformation();
-        resetUploadingPerformance();
+       // resetUploadingPerformance();
         updateStartButton();
 
     }
@@ -919,30 +919,7 @@ public class file_upload extends AppCompatActivity {
     // 11. RESET UPLOADING PERFORMANCE
     // =====================================================
 
-    private void resetUploadingPerformance() {
 
-        binding.performanceUploadTime.setText(
-                "Not tested"
-        );
-
-        binding.performanceThroughput.setText(
-                "Not tested"
-        );
-
-        binding.performanceResponseTime.setText(
-                "Not tested"
-        );
-
-        binding.performanceSuccessRate.setText(
-                "Not tested"
-        );
-
-        binding.performanceEnergy.setText("Not tested");
-
-        // Hide the old "Best Library" card.
-        binding.bestLibrarySection.setVisibility(View.GONE);
-
-    }
 
 
     // =====================================================
@@ -1201,11 +1178,7 @@ public class file_upload extends AppCompatActivity {
                         return;
                     }
 
-                    binding.performanceUploadTime.setText(timeResult);
-                    binding.performanceThroughput.setText(throughputResult);
-                    binding.performanceResponseTime.setText(responseResult);
-                    binding.performanceSuccessRate.setText(rateResult);
-                    binding.performanceEnergy.setText(energyResult);
+
 
                     // Best library card.
                     if (best.any) {

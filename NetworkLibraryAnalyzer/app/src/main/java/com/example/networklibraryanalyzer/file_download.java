@@ -117,13 +117,14 @@ public class file_download extends AppCompatActivity {
     private static class LibraryStats {
 
         final String name;
-        final long avgMs;           // average download time of all files (ms)
+        final long avgMs;           // average download time of all files (ms) - used for throughput and tie-breaks only
         final double throughput;    // MB/s
         final long bestMs;          // fastest single run (response time, ms)
         final int successCount;
         final int successPercent;   // 0 - 100
         int score;                  // sum of ranks, lower is better
         double energyMwh = -1;      // energy per run in mWh (-1 = not measured)
+        double energyPercent = -1;  // battery used per run in % (-1 = not available)
 
         LibraryStats(String name, long avgMs, double throughput, long bestMs,
                      int successCount, int successPercent) {
@@ -145,7 +146,6 @@ public class file_download extends AppCompatActivity {
     private static class BestResult {
         boolean any = false;
         String overall = "";
-        String downloadTime = "";
         String throughput = "";
         String responseTime = "";
         String successRate = "";
@@ -192,7 +192,19 @@ public class file_download extends AppCompatActivity {
     }
 
 
-    // Compares all libraries: download time, throughput, response time, success rate, energy.
+    // Energy text: percentage of the battery per run (falls back to mWh if the
+    // battery capacity is not available on this phone).
+    private static String energyLabel(LibraryStats s) {
+
+        if (s.energyPercent >= 0) {
+            return String.format(Locale.US, "%.4f%% of battery per run", s.energyPercent);
+        }
+
+        return String.format(Locale.US, "%.3f mWh per run", s.energyMwh);
+    }
+
+
+    // Compares all libraries: throughput, response time, success rate, energy.
     private static BestResult compareLibraries(List<LibraryStats> all) {
 
         BestResult result = new BestResult();
@@ -212,7 +224,6 @@ public class file_download extends AppCompatActivity {
 
         result.any = true;
 
-        Comparator<LibraryStats> byTime = (a, b) -> Long.compare(a.avgMs, b.avgMs);
         Comparator<LibraryStats> byThroughput = (a, b) -> Double.compare(b.throughput, a.throughput);
         Comparator<LibraryStats> byResponse = (a, b) -> Long.compare(a.bestMs, b.bestMs);
         Comparator<LibraryStats> bySuccess = (a, b) -> Integer.compare(b.successPercent, a.successPercent);
@@ -228,7 +239,6 @@ public class file_download extends AppCompatActivity {
         }
 
         // Best library for each result.
-        LibraryStats bestTime = pickBest(ok, byTime);
         LibraryStats bestThroughput = pickBest(ok, byThroughput);
         LibraryStats bestResponse = pickBest(ok, byResponse);
         LibraryStats bestSuccess = pickBest(ok, bySuccess);
@@ -239,7 +249,6 @@ public class file_download extends AppCompatActivity {
             s.score = 0;
         }
 
-        addRanks(ok, byTime);
         addRanks(ok, byThroughput);
         addRanks(ok, byResponse);
         addRanks(ok, bySuccess);
@@ -273,8 +282,6 @@ public class file_download extends AppCompatActivity {
 
         result.overall = "\uD83C\uDFC6 " + overall.name;
 
-        result.downloadTime = bestTime.name + dot + bestTime.avgMs + " ms";
-
         result.throughput = bestThroughput.name + dot
                 + String.format(Locale.US, "%.2f MB/s", bestThroughput.throughput);
 
@@ -283,8 +290,7 @@ public class file_download extends AppCompatActivity {
         result.successRate = bestSuccess.name + dot + bestSuccess.successPercent + "%";
 
         result.energy = useEnergy
-                ? bestEnergy.name + dot
-                + String.format(Locale.US, "%.3f mWh per run", bestEnergy.energyMwh)
+                ? bestEnergy.name + dot + energyLabel(bestEnergy)
                 : "Not measured (unplug the charger)";
 
         // Comparison of all libraries (best first, failed ones at the end).
@@ -296,8 +302,6 @@ public class file_download extends AppCompatActivity {
         for (LibraryStats s : ranked) {
 
             text.append(place++).append(". ").append(s.name).append("\n")
-                    .append("Download time: ").append(s.avgMs).append(" ms")
-                    .append(s == bestTime ? star : "").append("\n")
                     .append("Throughput: ")
                     .append(String.format(Locale.US, "%.2f MB/s", s.throughput))
                     .append(s == bestThroughput ? star : "").append("\n")
@@ -305,7 +309,7 @@ public class file_download extends AppCompatActivity {
                     .append(s == bestResponse ? star : "").append("\n")
                     .append("Energy used: ")
                     .append(s.energyMwh >= 0
-                            ? String.format(Locale.US, "%.3f mWh per run", s.energyMwh)
+                            ? energyLabel(s)
                             : "not measured")
                     .append(s == bestEnergy ? star : "").append("\n")
                     .append("Success rate: ").append(s.successPercent).append("% (")
@@ -615,12 +619,6 @@ public class file_download extends AppCompatActivity {
 
     private void resetPerformance() {
 
-        binding.performanceDownloadTime.setText("Not tested");
-        binding.performanceThroughput.setText("Not tested");
-        binding.performanceResponseTime.setText("Not tested");
-        binding.performanceSuccessRate.setText("Not tested");
-        binding.performanceEnergy.setText("Not tested");
-
         // Hide the old "Best Library" card.
         binding.bestLibrarySection.setVisibility(View.GONE);
     }
@@ -674,7 +672,6 @@ public class file_download extends AppCompatActivity {
 
             DownloadClient client = new DownloadClient(getApplicationContext());
 
-            StringBuilder timeText = new StringBuilder();
             StringBuilder throughputText = new StringBuilder();
             StringBuilder responseText = new StringBuilder();
             StringBuilder rateText = new StringBuilder();
@@ -702,6 +699,9 @@ public class file_download extends AppCompatActivity {
                     canMeasure = false;
                 }
             }
+
+            // Full battery capacity in mWh (used to show energy as a percentage).
+            final double capacityMwh = canMeasure ? meter.batteryCapacityMwh() : -1;
 
             for (String library : selectedLibraries) {
 
@@ -776,6 +776,11 @@ public class file_download extends AppCompatActivity {
                 double mbPerRun = (successCount > 0 ? totalBytesAllRuns / successCount : 0)
                         / (1024.0 * 1024.0);
 
+                // Battery used by ONE run, in percent of the full battery.
+                double perRunPercent = (perRunEnergy >= 0 && capacityMwh > 0)
+                        ? perRunEnergy / capacityMwh * 100.0
+                        : -1;
+
                 if (successCount > 0) {
 
                     anySuccess = true;
@@ -791,9 +796,8 @@ public class file_download extends AppCompatActivity {
                     LibraryStats stats = new LibraryStats(library, avgMs, throughput, bestMs,
                             successCount, successCount * 100 / DOWNLOAD_RUNS);
                     stats.energyMwh = perRunEnergy;
+                    stats.energyPercent = perRunPercent;
                     allStats.add(stats);
-
-                    timeText.append(library).append(": ").append(avgMs).append(" ms\n");
 
                     throughputText.append(library).append(": ")
                             .append(String.format(Locale.US, "%.2f MB/s", throughput))
@@ -806,7 +810,6 @@ public class file_download extends AppCompatActivity {
 
                     allStats.add(new LibraryStats(library, 0, 0, 0, 0, 0));
 
-                    timeText.append(library).append(": Failed\n");
                     throughputText.append(library).append(": Failed\n");
                     responseText.append(library).append(": Failed\n");
                 }
@@ -818,12 +821,27 @@ public class file_download extends AppCompatActivity {
                 } else if (successCount == 0) {
                     energyText.append(library).append(": Failed\n");
                 } else {
-                    energyText.append(library).append(": ")
-                            .append(String.format(Locale.US, "%.3f mWh per run", perRunEnergy))
-                            .append(mbPerRun > 0
-                                    ? String.format(Locale.US, " (%.3f mWh/MB)", perRunEnergy / mbPerRun)
-                                    : "")
-                            .append("\n");
+                    if (perRunPercent >= 0) {
+
+                        energyText.append(library).append(": ")
+                                .append(String.format(Locale.US, "%.4f%% of battery per run",
+                                        perRunPercent))
+                                .append(mbPerRun > 0
+                                        ? String.format(Locale.US, " (%.4f%%/MB)",
+                                        perRunPercent / mbPerRun)
+                                        : "")
+                                .append("\n");
+
+                    } else {
+
+                        // Battery capacity not available: show mWh instead.
+                        energyText.append(library).append(": ")
+                                .append(String.format(Locale.US, "%.3f mWh per run", perRunEnergy))
+                                .append(mbPerRun > 0
+                                        ? String.format(Locale.US, " (%.3f mWh/MB)", perRunEnergy / mbPerRun)
+                                        : "")
+                                .append("\n");
+                    }
                 }
 
                 rateText.append(library).append(": ")
@@ -847,7 +865,6 @@ public class file_download extends AppCompatActivity {
             final long downloadedBytes = lastTotalBytes;
             final boolean anySaved = !savedNames.isEmpty();
 
-            final String timeResult = timeText.toString().trim();
             final String throughputResult = throughputText.toString().trim();
             final String responseResult = responseText.toString().trim();
             final String rateResult = rateText.toString().trim();
@@ -861,7 +878,9 @@ public class file_download extends AppCompatActivity {
                     "Download of " + files.size() + " file(s)"
                             + "\nBytes per run: " + downloadedBytes
                             + "\nBackend URL: " + BASE_URL
-                            + "\nDownload time:\n" + timeResult
+                            + "\nThroughput:\n" + throughputResult
+                            + "\nResponse time:\n" + responseResult
+                            + "\nEnergy:\n" + energyResult
                             + "\nSuccess rate:\n" + rateResult
                             + (errorText.isEmpty() ? "" : "\nLast error: " + errorText)
             );
@@ -876,17 +895,10 @@ public class file_download extends AppCompatActivity {
                 binding.progressBar.setVisibility(View.GONE);
                 binding.refreshFilesButton.setEnabled(true);
 
-                binding.performanceDownloadTime.setText(timeResult);
-                binding.performanceThroughput.setText(throughputResult);
-                binding.performanceResponseTime.setText(responseResult);
-                binding.performanceSuccessRate.setText(rateResult);
-                binding.performanceEnergy.setText(energyResult);
-
                 // Best library card.
                 if (best.any) {
 
                     binding.bestOverall.setText(best.overall);
-                    binding.bestDownloadTime.setText(best.downloadTime);
                     binding.bestThroughput.setText(best.throughput);
                     binding.bestResponseTime.setText(best.responseTime);
                     binding.bestSuccessRate.setText(best.successRate);
@@ -1011,6 +1023,37 @@ public class file_download extends AppCompatActivity {
         boolean isCharging() {
             Intent intent = batteryIntent();
             return intent != null && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+        }
+
+        // Full battery capacity in mWh (-1 if the phone does not report it).
+        // Full capacity = remaining charge / battery level, then x voltage.
+        double batteryCapacityMwh() {
+
+            if (batteryManager == null) {
+                return -1;
+            }
+
+            long chargeMicroAh = batteryManager.getLongProperty(
+                    BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
+            int levelPercent = batteryManager.getIntProperty(
+                    BatteryManager.BATTERY_PROPERTY_CAPACITY);
+
+            if (chargeMicroAh <= 0 || chargeMicroAh == Long.MIN_VALUE || levelPercent <= 0) {
+                return -1;
+            }
+
+            Intent intent = batteryIntent();
+            double volts = intent != null
+                    ? intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) / 1000.0
+                    : 0;
+
+            if (volts <= 0) {
+                return -1;
+            }
+
+            double fullMah = (chargeMicroAh / 1000.0) / (levelPercent / 100.0);
+
+            return fullMah * volts;      // mAh x V = mWh
         }
 
         // Power used right now in mW (0 if the phone does not report it).

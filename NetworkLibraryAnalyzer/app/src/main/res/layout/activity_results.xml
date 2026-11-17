@@ -31,14 +31,15 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingTop="20dp"
-                    android:text="Network Analysis"
+                    android:text="NETWORK ANALYSIS"
                     android:textColor="#64748B"
-                    android:textSize="13sp"/>
+                    android:textSize="13sp"
+                    android:textStyle="bold"/>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingTop="30dp"
+                    android:paddingTop="24dp"
                     android:text="Test Results"
                     android:textColor="#172B4D"
                     android:textSize="26sp"
@@ -117,7 +118,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🏆 BEST PERFORMING LIBRARY"
+                    android:text="FASTEST UPLOAD LIBRARY"
                     android:textColor="#3478D4"
                     android:textSize="12sp"
                     android:textStyle="bold"/>
@@ -127,34 +128,35 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="OkHttp"
+                    android:text="Waiting for results"
                     android:textColor="#15803D"
                     android:textSize="28sp"
                     android:textStyle="bold"/>
 
                 <TextView
                     android:id="@+id/fastestTime"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:text="280 ms"
+                    android:layout_marginTop="8dp"
+                    android:text="Upload time and measurements will appear here."
                     android:textColor="#172B4D"
-                    android:textSize="23sp"
-                    android:textStyle="bold"/>
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="3dp"/>
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Lowest execution time"
+                    android:layout_marginTop="10dp"
+                    android:text="The fastest library is selected using the lowest upload time. The most energy-efficient library is shown separately."
                     android:textColor="#64748B"
-                    android:textSize="12sp"/>
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="2dp"/>
 
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Performance Section -->
+        <!-- Performance Comparison Heading -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -168,9 +170,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
-            android:text="Compare execution time of each library"
+            android:text="Compare all tested network libraries using their performance measurements."
             android:textColor="#64748B"
-            android:textSize="12sp"/>
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"/>
 
         <!-- Dynamic Result Rows -->
         <com.google.android.material.card.MaterialCardView
@@ -179,18 +182,22 @@
             android:layout_marginTop="14dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="2dp"
-            app:cardBackgroundColor="#FFFFFF">
+            app:cardBackgroundColor="#FFFFFF"
+            app:strokeColor="#E5EAF2"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:id="@+id/resultContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"/>
+                android:padding="16dp">
+
+            </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Footer Buttons -->
+        <!-- Back Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/backButton"
             android:layout_width="match_parent"
@@ -202,6 +209,7 @@
             app:cornerRadius="12dp"
             app:backgroundTint="#3478D4"/>
 
+        <!-- Footer -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
